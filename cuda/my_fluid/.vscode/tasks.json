@@ -1,0 +1,62 @@
+// 
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build CUDA",
+            "type": "shell",
+            "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
+            "args": [
+                "-o",
+                "mainfluids2",
+                "mainfluids2.cu",
+                "-I", "C:/Users/vanho/Desktop/HPC_september/simple_fluid_cuda/my_fluid/eigen3", // Add the path to your Eigen library
+                "-lcurand",  // Collega la libreria cuRAND
+                "--expt-relaxed-constexpr", // Permette di usare variabili constexpr in modo più flessibile
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Generated task for CUDA"
+        }
+    ]
+}
+//{
+//     "version": "2.0.0",
+//     "tasks": [
+//         {
+//             "label": "Build CUDA",
+//             "type": "shell",
+//             "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
+//             "args": [
+//                 "-o",
+//                 "${input:outputFile}",
+//                 "${input:sourceFile}",
+//                 "-lcurand"
+//             ],
+//             "group": {
+//                 "kind": "build",
+//                 "isDefault": true
+//             },
+//             "problemMatcher": ["$gcc"],
+//             "detail": "Generated task for CUDA"
+//         }
+//     ],
+//     "inputs": [
+//         {
+//             "id": "sourceFile",
+//             "type": "pickString",
+//             "description": "Choose the CUDA source file to compile",
+//             "options": ["blocks.cu", "ising_comm.cu"],
+//             "default": "blocks.cu"
+//         },
+//         {
+//             "id": "outputFile",
+//             "type": "promptString",
+//             "description": "Enter the output file name",
+//             "default": "blocks"
+//         }
+//     ]
+// }
