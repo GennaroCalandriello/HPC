@@ -1,4 +1,41 @@
 // Structures
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include <cuda_runtime.h>
+
+
+// Include constants and vector structures
+
+// Include GLFW
+#include "glfw-3.4.bin.WIN64/include/GLFW//glfw3.h"
+
+// Simulation parameters
+#define TIMESTEP 0.3f
+#define DIM 1000
+#define RES 1000
+#define VISCOSITY 2f
+#define RADIUS (DIM * DIM)
+#define DECAY_RATE 3.0f
+#define NUM_TIMESTEPS 300
+#define MAX_VELOCITY 1.0f  // Adjust as needed for normalization
+
+// CUDA kernel parameters
+#define BLOCKSIZEY 16
+#define BLOCKSIZEX 16
+
+#define IND(x, y, d) int((y) * (d) + (x))
+#define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
+
+// Simulation parameters
+float timestep = TIMESTEP;
+unsigned dim = DIM;
+float rdx = static_cast<float>(RES) / dim;
+float viscosity = VISCOSITY;
+float r = 3000;
+float magnitude = 70.0f;
+
 struct Vector2f {
     float x, y;
 
@@ -123,3 +160,23 @@ struct Vector3f {
         return Vector3f(0.0f, 0.0f, 0.0f);
     }
 };
+
+__device__ void applyWind(Vector2f field, float windX, float windY, unsigned dim) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    int j = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (i >= dim || j >= dim)
+        return;
+
+    int idx = IND(i, j, dim);
+
+    // Apply wind uniformly
+    field.x += windX;
+    field.y += windY;
+
+    // If you want to apply wind in a specific region, add conditions:
+    // if (i >= startX && i <= endX && j >= startY && j <= endY) {
+    //     field[idx].x += windX;
+    //     field[idx].y += windY;
+    // }
+}

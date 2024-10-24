@@ -1,34 +1,5 @@
 // mainfluids_visualization.cu
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <cuda_runtime.h>
 #include "const.h"
-
-// Include constants and vector structures
-
-// Include GLFW
-#include "glfw-3.4.bin.WIN64/include/GLFW//glfw3.h"
-
-// Simulation parameters
-#define TIMESTEP 0.3f
-#define DIM 1000
-#define RES 1000
-#define VISCOSITY 0.1f
-#define RADIUS (DIM * DIM)
-#define DECAY_RATE 1.0f
-#define NUM_TIMESTEPS 300
-#define MAX_VELOCITY 3.0f  // Adjust as needed for normalization
-
-// CUDA kernel parameters
-#define BLOCKSIZEY 16
-#define BLOCKSIZEX 16
-
-#define IND(x, y, d) int((y) * (d) + (x))
-#define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
-
-
 
 // Viridis colormap data (You need to include all 256 entries)
 // For brevity, only a few entries are shown here. Include all in your code.
@@ -39,6 +10,8 @@ __device__ __constant__ float viridis_colormap[256][3] = {
 // Global variables
 Vector2f C;
 Vector2f F;
+// Vector2f C1;
+// Vector2f F1;
 float global_decay_rate = DECAY_RATE;
 
 // Function to decay the force
@@ -69,28 +42,30 @@ If the interpolated position falls outside the simulation grid, the function ret
 imposing a zero velocity at the boundaries.
 */
 __device__ Vector2f bilinearInterpolation(Vector2f pos, Vector2f* field, unsigned dim) {
+    pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
+    pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+
     int i = static_cast<int>(pos.x);
     int j = static_cast<int>(pos.y);
     float dx = pos.x - i;
     float dy = pos.y - j;
 
-    if (i < 0 || i >= dim - 1 || j < 0 || j >= dim - 1) {
-        // Out of bounds
-        return Vector2f::Zero();
-    }
-    else {
-        // Perform bilinear interpolation
-        Vector2f f00 = field[IND(i, j, dim)];
-        Vector2f f10 = field[IND(i + 1, j, dim)];
-        Vector2f f01 = field[IND(i, j + 1, dim)];
-        Vector2f f11 = field[IND(i + 1, j + 1, dim)];
+    // Adjust indices for safety
+    int i1 = min(i + 1, dim - 1);
+    int j1 = min(j + 1, dim - 1);
 
-        Vector2f f0 = f00 * (1.0f - dx) + f10 * dx;
-        Vector2f f1 = f01 * (1.0f - dx) + f11 * dx;
+    // Perform bilinear interpolation
+    Vector2f f00 = field[IND(i, j, dim)];
+    Vector2f f10 = field[IND(i1, j, dim)];
+    Vector2f f01 = field[IND(i, j1, dim)];
+    Vector2f f11 = field[IND(i1, j1, dim)];
 
-        return f0 * (1.0f - dy) + f1 * dy;
-    }
+    Vector2f f0 = f00 * (1.0f - dx) + f10 * dx;
+    Vector2f f1 = f01 * (1.0f - dx) + f11 * dx;
+
+    return f0 * (1.0f - dy) + f1 * dy;
 }
+
 
 // Second step: advect the data through method of characteristics
 __device__ void advect(Vector2f x, Vector2f* field, Vector2f* velfield, float timestep, float rdx, unsigned dim) {
@@ -173,7 +148,10 @@ __global__ void NSkernel(Vector2f* u, float* p, float rdx, float viscosity, Vect
 
     // Force application
     force(x, u, C, F, timestep, r, dim);
+
     __syncthreads();
+    
+    // __syncthreads();
 
     // Pressure calculation
     alpha = -rdx * rdx;
@@ -217,18 +195,20 @@ __global__ void colorKernel(Vector3f* colorField, Vector2f* velocityField, unsig
     colorField[idx] = Vector3f(r, g, b);
 }
 
+
+
 int main(int argc, char** argv) {
-    // Simulation parameters
-    float timestep = TIMESTEP;
-    unsigned dim = DIM;
-    float rdx = static_cast<float>(RES) / dim;
-    float viscosity = VISCOSITY;
-    global_decay_rate = DECAY_RATE;
-    float r = RADIUS;
+
+
+    // Define wind direction and magnitude
+    Vector2f windDirection(1.0f, 2.0f); // Wind blowing to the right
+    float windMagnitude = 0.1f;         // Adjust the magnitude as needed
+    Vector2f windForce = windDirection * windMagnitude;
 
     // Force parameters
-    C = Vector2f(static_cast<float>(dim) / 2.0f, static_cast<float>(dim) / 2.0f); // Center of the domain
-    F = Vector2f(10.0f, 10.0f); // Initial force
+    // C = Vector2f(static_cast<float>(dim) / 2.0f, static_cast<float>(dim) / 2.0f); // Center of the domain
+    C = Vector2f(0, 0);
+    F = Vector2f(0.0f, 0.0f); // Initial force
 
     // Velocity vector field and pressure scalar field
     Vector2f* u = (Vector2f*)malloc(dim * dim * sizeof(Vector2f));
@@ -301,10 +281,15 @@ int main(int argc, char** argv) {
     while (!glfwWindowShouldClose(window)) {
         // Execute the Navier-Stokes kernel
         // Force parameters
-        // C = Vector2f(static_cast<float>(dim) / 2.0f, static_cast<float>(dim) / 2.0f); // Center of the domain
+        
         //add F as a periodic func
-        F=Vector2f(10.0f*sin(glfwGetTime()), 0.0f);
-        // F = Vector2f(0.0f, 40.0f); // Initial force
+        float time = glfwGetTime();
+        // F1 = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
+        // C1 = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
+        F = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
+        // F = Vector2f(pow(2, sin(time))+ pow(2, cos(time)), 0.0f)*magnitude; // Initial force
+        // F = Vector2f(time, 0);
+        C = Vector2f(static_cast<float>(dim)/3, static_cast<float>(dim) / 2.0f) ; // Center of the domain
         NSkernel<<<blocks, threads>>>(dev_u, dev_p, rdx, viscosity, C, F, timestep, r, dim);
 
         // Check for CUDA errors
@@ -358,8 +343,8 @@ int main(int argc, char** argv) {
 
         // Optionally update force parameters
         // For example, to move the force center or change its magnitude
-        C = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
-        F = Vector2f(10.0f, 10.0f);
+        // C = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
+        // F = Vector2f(10.0f, 10.0f);
     }
 
     // Free memory
