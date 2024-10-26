@@ -265,14 +265,14 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, float c_ambient, float
     Vector2f grad_p = gradient(x, p, 0.5f * rdx, dim);
     u[IND(i, j, dim)] -= grad_p;
     __syncthreads();
-    
+
     if (advect_scalar_bool==1 ) {
     //     // Advection of scalar field c
     advectScalar(x, c, u, timestep, rdx, dim);
     __syncthreads();
 
     // Diffusion of scalar field c
-    diffuseScalar(x, c, diffusionRate, timestep, rdx, dim);
+    diffuseScalar(x, c, diffusion_rate, timestep, rdx, dim);
     __syncthreads();
 
         // **Applica la forza di galleggiamento basata su c**
@@ -283,7 +283,7 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, float c_ambient, float
 
 int main(int argc, char** argv) {
     float c_ambient = 0.0f;    // Valore ambientale di c
-    float betabouyancy = 1.0f;         // Coefficiente di espansione (regola l'influenza di c su u)
+    float betabouyancy = BETA_BOUYANCY;         // Coefficiente di espansione (regola l'influenza di c su u)
     float gravity = -9.81f;  
     int framecount = 0;
 
@@ -295,7 +295,7 @@ int main(int argc, char** argv) {
     // Force parameters
     // C = Vector2f(static_cast<float>(dim) / 2.0f, static_cast<float>(dim) / 2.0f); // Center of the domain
     C = Vector2f(0, 0);
-    F = Vector2f(0.0f, 23.8f); // Initial force
+    F = Vector2f(0.0f, 0.8f); // Initial force
 
     // Velocity vector field and pressure scalar field
     Vector2f* u = (Vector2f*)malloc(dim * dim * sizeof(Vector2f));
@@ -381,17 +381,20 @@ int main(int argc, char** argv) {
 
     // Simulation loop
     while (!glfwWindowShouldClose(window)) {
+        // Time step
         // Execute the Navier-Stokes kernel
         // Force parameters
         
         //add F as a periodic func
         float time = glfwGetTime();
+
+        if (PERIODIC_FORCE == 1) {
+            F = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
+        }
         // F1 = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
-        // C1 = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
-        // F = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
-        // F = Vector2f(pow(2, sin(time))+ pow(2, cos(time)), 0.0f)*magnitude; // Initial force
-        // F = Vector2f(time, 0);
-        C = Vector2f(static_cast<float>(dim)/3, static_cast<float>(dim) / 2.0f) ; // Center of the domain
+        C = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
+
+        // C = Vector2f(static_cast<float>(dim)/3, static_cast<float>(dim) / 2.0f) ; // Center of the domain
         NSkernel<<<blocks, threads>>>(dev_u, dev_p, dev_c,c_ambient, gravity, betabouyancy, rdx, viscosity, C, F, timestep, r, dim);
      
         // injectFluid<<<blocks, threads>>>(dev_u, dim);
@@ -408,7 +411,7 @@ int main(int argc, char** argv) {
         // Map the velocity field to colors
         
         framecount++;
-        if (framecount % 100 == 0) {
+        if (framecount % RENDERING == 0) {
             colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dim);
         
 

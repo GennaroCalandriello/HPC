@@ -10,28 +10,29 @@
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
 #define TIMESTEP 0.004f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
-#define DIM 1250
-#define RES 1250
-#define VISCOSITY 0.1f
+#define DIM 1100
+#define RES 1100
+#define VISCOSITY 0.008
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
 #define NUM_TIMESTEPS 300
-#define MAX_VELOCITY 20  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
+#define MAX_VELOCITY 100  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
 #define JETX 87
 #define JETY DIM / 2
 #define JETRADIUS DIM / 25
-#define JETSPEED 24.0f
+#define JETSPEED 124.0f
 #define VORTEX_CENTER_X DIM/2
 #define VORTEX_CENTER_Y DIM / 2
 #define VORTEX_STRENGTH 0.1f
-#define VORTEX_RADIUS DIM / 100
+#define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
-#define RENDERING 5
+#define RENDERING 5 //Graphic parameter
+#define BETA_BOUYANCY 0.4f
 
 //Bool variables
-#define FLUID_INJ 1
-#define PERIODIC_FORCE 0
-#define VORTEX 0
+#define FLUID_INJ 0
+#define PERIODIC_FORCE 1
+#define VORTEX 1
 
 // CUDA kernel parameters
 #define BLOCKSIZEY 16
@@ -48,8 +49,8 @@ float timestep = TIMESTEP;
 unsigned dim = DIM;
 float rdx = static_cast<float>(RES) / dim;
 float viscosity = VISCOSITY;
-float r = 1;
-float magnitude = 70.0f;
+float r = dim*dim;
+float magnitude = 50.0f;
 
 struct Vector2f {
     float x, y;
@@ -259,27 +260,51 @@ __device__ Vector2f velocityAt(Vector2f pos, Vector2f* velfield, unsigned dim) {
     }  
 
 __device__ float interpolateScalar(Vector2f pos, float* field, unsigned dim) {
-    // Clamp positions to grid boundaries
-    pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
-    pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+    if (periodic == 1) {
+        // Apply periodic wrapping
+        pos.x = fmodf(pos.x + dim, dim);
+        pos.y = fmodf(pos.y + dim, dim);
 
-    int i0 = static_cast<int>(pos.x);
-    int j0 = static_cast<int>(pos.y);
-    int i1 = i0 + 1;
-    int j1 = j0 + 1;
+        int i0 = static_cast<int>(floorf(pos.x)) % dim;
+        int j0 = static_cast<int>(floorf(pos.y)) % dim;
+        int i1 = (i0 + 1) % dim;
+        int j1 = (j0 + 1) % dim;
 
-    float s1 = pos.x - i0;
-    float s0 = 1.0f - s1;
-    float t1 = pos.y - j0;
-    float t0 = 1.0f - t1;
+        float s1 = pos.x - floorf(pos.x);
+        float s0 = 1.0f - s1;
+        float t1 = pos.y - floorf(pos.y);
+        float t0 = 1.0f - t1;
 
-    float f00 = field[IND(i0, j0, dim)];
-    float f10 = field[IND(i1, j0, dim)];
-    float f01 = field[IND(i0, j1, dim)];
-    float f11 = field[IND(i1, j1, dim)];
+        float f00 = field[IND(i0, j0, dim)];
+        float f10 = field[IND(i1, j0, dim)];
+        float f01 = field[IND(i0, j1, dim)];
+        float f11 = field[IND(i1, j1, dim)];
 
-    return s0 * (t0 * f00 + t1 * f01) + s1 * (t0 * f10 + t1 * f11);
+        return s0 * (t0 * f00 + t1 * f01) + s1 * (t0 * f10 + t1 * f11);
+    } else {
+        // Non-periodic boundary conditions (clamping)
+        pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
+        pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+
+        int i0 = static_cast<int>(pos.x);
+        int j0 = static_cast<int>(pos.y);
+        int i1 = min(i0 + 1, dim - 1);
+        int j1 = min(j0 + 1, dim - 1);
+
+        float s1 = pos.x - i0;
+        float s0 = 1.0f - s1;
+        float t1 = pos.y - j0;
+        float t0 = 1.0f - t1;
+
+        float f00 = field[IND(i0, j0, dim)];
+        float f10 = field[IND(i1, j0, dim)];
+        float f01 = field[IND(i0, j1, dim)];
+        float f11 = field[IND(i1, j1, dim)];
+
+        return s0 * (t0 * f00 + t1 * f01) + s1 * (t0 * f10 + t1 * f11);
+    }
 }
+
 
 
 __device__ void advectScalar(Vector2f x, float* field, Vector2f* velfield, float timestep, float rdx, unsigned dim) {
