@@ -11,28 +11,6 @@ __device__ __constant__ float viridis_colormap[256][3] = {
 
 
 
-__device__ void applyWind(Vector2f field, float windX, float windY, unsigned dim) {
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    int j = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (i >= dim || j >= dim)
-        return;
-
-    int idx = IND(i, j, dim);
-
-    // Apply wind uniformly
-    field.x += windX;
-    field.y += windY;
-
-    // If you want to apply wind in a specific region, add conditions:
-    // if (i >= startX && i <= endX && j >= startY && j <= endY) {
-    //     field[idx].x += windX;
-    //     field[idx].y += windY;
-    // }
-}
-
-
-
 __device__ void injectFluid(Vector2f* u, unsigned dim) {
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int j = blockDim.y * blockIdx.y + threadIdx.y;

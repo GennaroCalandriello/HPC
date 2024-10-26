@@ -9,43 +9,47 @@
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define TIMESTEP 0.3f
-#define DIM 1000
-#define RES 1000
-#define VISCOSITY 0.4f
+#define TIMESTEP 0.004f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
+#define DIM 1250
+#define RES 1250
+#define VISCOSITY 0.1f
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
 #define NUM_TIMESTEPS 300
-#define MAX_VELOCITY 10  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
+#define MAX_VELOCITY 20  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
 #define JETX 87
 #define JETY DIM / 2
-#define JETRADIUS DIM / 20
-#define JETSPEED 8.5f
+#define JETRADIUS DIM / 25
+#define JETSPEED 24.0f
 #define VORTEX_CENTER_X DIM/2
 #define VORTEX_CENTER_Y DIM / 2
 #define VORTEX_STRENGTH 0.1f
-#define VORTEX_RADIUS DIM / 30
+#define VORTEX_RADIUS DIM / 100
+#define NUM_OF_DIFFUSION_STEPS 1
+#define RENDERING 5
 
 //Bool variables
 #define FLUID_INJ 1
-#define PERIODIC_FORCE 1
+#define PERIODIC_FORCE 0
 #define VORTEX 0
 
 // CUDA kernel parameters
 #define BLOCKSIZEY 16
 #define BLOCKSIZEX 16
 
-
+// Buondary parameter
+#define periodic 1 // 1 if periodic boundary conditions are used, 0 otherwise
+//Insert an advection external scalar field
+#define advect_scalar_bool 1 // 1 if the scalar field is advected, 0 otherwise
+#define diffusion_rate 0.001f // Diffusion rate of the scalar field  
 
 // Simulation parameters
 float timestep = TIMESTEP;
 unsigned dim = DIM;
 float rdx = static_cast<float>(RES) / dim;
 float viscosity = VISCOSITY;
-float r = dim;
+float r = 1;
 float magnitude = 70.0f;
-
-
 
 struct Vector2f {
     float x, y;
@@ -175,47 +179,84 @@ struct Vector3f {
 
 
 __device__ Vector2f bilinearInterpolation(Vector2f pos, Vector2f* field, unsigned dim) {
-    pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
-    pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+    if (periodic ==1 ){
+            // Apply periodic wrapping
+        pos.x = fmodf(pos.x + dim, dim);
+        pos.y = fmodf(pos.y + dim, dim);
 
-    int i = static_cast<int>(pos.x);
-    int j = static_cast<int>(pos.y);
-    float dx = pos.x - i;
-    float dy = pos.y - j;
+        int i0 = static_cast<int>(floorf(pos.x)) % dim;
+        int j0 = static_cast<int>(floorf(pos.y)) % dim;
+        int i1 = (i0 + 1) % dim;
+        int j1 = (j0 + 1) % dim;
 
-    // Adjust indices for safety
-    int i1 = min(i + 1, dim - 1);
-    int j1 = min(j + 1, dim - 1);
+        float s1 = pos.x - floorf(pos.x);
+        float s0 = 1.0f - s1;
+        float t1 = pos.y - floorf(pos.y);
+        float t0 = 1.0f - t1;
 
-    // // Perform bilinear interpolation
-    Vector2f f00 = field[IND(i, j, dim)];
-    Vector2f f10 = field[IND(i1, j, dim)];
-    Vector2f f01 = field[IND(i, j1, dim)];
-    Vector2f f11 = field[IND(i1, j1, dim)];
+        Vector2f f00 = field[IND(i0, j0, dim)];
+        Vector2f f10 = field[IND(i1, j0, dim)];
+        Vector2f f01 = field[IND(i0, j1, dim)];
+        Vector2f f11 = field[IND(i1, j1, dim)];
 
-    Vector2f f0 = f00 * (1.0f - dx) + f10 * dx;
-    Vector2f f1 = f01 * (1.0f - dx) + f11 * dx;
+        return s0 * (t0 * f00 + t1 * f01) + s1 * (t0 * f10 + t1 * f11);
+        }
 
-    return f0 * (1.0f - dy) + f1 * dy;
-    // Vector2f f00 = (i < 0 || i >= dim || j < 0 || j >= dim) ? Vector2f::Zero() : field[IND(i , j , dim)];
-    // Vector2f f01 = (i + 1 < 0 || i + 1 >= dim || j  < 0 || j  >= dim) ? Vector2f::Zero() : field[IND(i + 1, j , dim)];
-    // Vector2f f10 = (i  < 0 || i  >= dim || j + 1 < 0 || j + 1 >= dim) ? Vector2f::Zero() : field[IND(i , j + 1, dim)];
-    // Vector2f f11 = (i + 1 < 0 || i + 1 >= dim || j + 1 < 0 || j + 1 >= dim) ? Vector2f::Zero() : field[IND(i + 1, j + 1, dim)];
+    else 
+        {
+        pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
+        pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
 
-    // Vector2f f0 = (1 - dx) * f00 + dx * f10;
-    // Vector2f f1 = (1 - dx) * f01 + dx * f11;
+        int i = static_cast<int>(pos.x);
+        int j = static_cast<int>(pos.y);
+        float dx = pos.x - i;
+        float dy = pos.y - j;
 
-    // return (1 - dy) * f0 + dy * f1;
+        // Adjust indices for safety
+        int i1 = min(i + 1, dim - 1);
+        int j1 = min(j + 1, dim - 1);
+
+        // // Perform bilinear interpolation
+        Vector2f f00 = field[IND(i, j, dim)];
+        Vector2f f10 = field[IND(i1, j, dim)];
+        Vector2f f01 = field[IND(i, j1, dim)];
+        Vector2f f11 = field[IND(i1, j1, dim)];
+
+        Vector2f f0 = f00 * (1.0f - dx) + f10 * dx;
+        Vector2f f1 = f01 * (1.0f - dx) + f11 * dx;
+
+        return f0 * (1.0f - dy) + f1 * dy; }
+        // Vector2f f00 = (i < 0 || i >= dim || j < 0 || j >= dim) ? Vector2f::Zero() : field[IND(i , j , dim)];
+        // Vector2f f01 = (i + 1 < 0 || i + 1 >= dim || j  < 0 || j  >= dim) ? Vector2f::Zero() : field[IND(i + 1, j , dim)];
+        // Vector2f f10 = (i  < 0 || i  >= dim || j + 1 < 0 || j + 1 >= dim) ? Vector2f::Zero() : field[IND(i , j + 1, dim)];
+        // Vector2f f11 = (i + 1 < 0 || i + 1 >= dim || j + 1 < 0 || j + 1 >= dim) ? Vector2f::Zero() : field[IND(i + 1, j + 1, dim)];
+
+        // Vector2f f0 = (1 - dx) * f00 + dx * f10;
+        // Vector2f f1 = (1 - dx) * f01 + dx * f11;
+
+        // return (1 - dy) * f0 + dy * f1;
 }
 
 __device__ Vector2f velocityAt(Vector2f pos, Vector2f* velfield, unsigned dim) {
     // Clamp positions to grid boundaries
-    pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
-    pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+    if (periodic ==1) {
+            // Apply periodic wrapping
+        pos.x = fmodf(pos.x + dim, dim);
+        pos.y = fmodf(pos.y + dim, dim);
 
-    // Perform bilinear interpolation on the velocity field
-    return bilinearInterpolation(pos, velfield, dim);
-}
+        // Perform bilinear interpolation on the velocity field
+        return bilinearInterpolation(pos, velfield, dim);
+        }
+
+    else {
+            pos.x = fmaxf(0.0f, fminf(pos.x, dim - 1.001f));
+            pos.y = fmaxf(0.0f, fminf(pos.y, dim - 1.001f));
+
+            // Perform bilinear interpolation on the velocity field
+            return bilinearInterpolation(pos, velfield, dim);
+
+        }
+    }  
 
 __device__ float interpolateScalar(Vector2f pos, float* field, unsigned dim) {
     // Clamp positions to grid boundaries
@@ -267,23 +308,49 @@ __device__ void advectScalar(Vector2f x, float* field, Vector2f* velfield, float
     field[idx] = interpolateScalar(pos, field, dim);
 }
 
-__device__ void diffuseScalar(Vector2f x, float* field, float diffusionRate, float timestep, float rdx, unsigned dim) {
+__device__ int periodicIndex(int idx, int max) {
+    if (idx < 0)
+        return idx + max;
+    else if (idx >= max)
+        return idx - max;
+    else
+        return idx;
+}
+
+__device__ void diffuseScalar(Vector2f x, float* field, float diffRate, float timestep, float rdx, unsigned dim) {
     int i = static_cast<int>(x.x);
     int j = static_cast<int>(x.y);
 
-    float alpha = rdx * rdx / (diffusionRate * timestep);
+    float alpha = rdx * rdx / (diffRate * timestep);
     float beta = 4.0f + alpha;
 
-    float f_left = (i > 0) ? field[IND(i - 1, j, dim)] : 0.0f;
-    float f_right = (i < dim - 1) ? field[IND(i + 1, j, dim)] : 0.0f;
-    float f_down = (j > 0) ? field[IND(i, j - 1, dim)] : 0.0f;
-    float f_up = (j < dim - 1) ? field[IND(i, j + 1, dim)] : 0.0f;
-    float f_center = field[IND(i, j, dim)];
+    if (periodic == 0) {
+        // apply Periodic BC via periodicIndex function
+        float f_left = field[IND(periodicIndex(i - 1, dim), j, dim)];
+        float f_right = field[IND(periodicIndex(i + 1, dim), j, dim)];
+        float f_down = field[IND(i, periodicIndex(j - 1, dim), dim)];
+        float f_up = field[IND(i, periodicIndex(j + 1, dim), dim)];
+        float f_center = field[IND(i, j, dim)];
 
-    float b = f_center;
+        float b = f_center;
 
-    // Jacobi iteration
-    field[IND(i, j, dim)] = (f_left + f_right + f_down + f_up + alpha * b) / beta;
+        // Jacobi iteration
+        field[IND(i, j, dim)] = (f_left + f_right + f_down + f_up + alpha * b) / beta;
+
+        
+    }
+    else {
+        float f_left = (i > 0) ? field[IND(i - 1, j, dim)] : 0.0f;
+        float f_right = (i < dim - 1) ? field[IND(i + 1, j, dim)] : 0.0f;
+        float f_down = (j > 0) ? field[IND(i, j - 1, dim)] : 0.0f;
+        float f_up = (j < dim - 1) ? field[IND(i, j + 1, dim)] : 0.0f;
+        float f_center = field[IND(i, j, dim)];
+
+        float b = f_center;
+
+        // Jacobi iteration
+        field[IND(i, j, dim)] = (f_left + f_right + f_down + f_up + alpha * b) / beta; 
+        }
 }
 
 __device__ void applyBuoyancy(Vector2f x, Vector2f* u, float* c, float c_ambient, float beta, float gravity, unsigned dim) {
@@ -296,3 +363,5 @@ __device__ void applyBuoyancy(Vector2f x, Vector2f* u, float* c, float c_ambient
     // Applica la forza al componente verticale della velocità
     u[idx].y += buoyancyForce * gravity;
 }
+
+

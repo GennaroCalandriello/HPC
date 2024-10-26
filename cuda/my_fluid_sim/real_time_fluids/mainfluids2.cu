@@ -1,6 +1,6 @@
+
 // mainfluids_visualization.cu
 #include "functions.h"
-#define diffusionRate 0.001f
 
 // Viridis colormap data (You need to include all 256 entries)
 // For brevity, only a few entries are shown here. Include all in your code.
@@ -23,14 +23,31 @@ void decayForce() {
 
 // First step: apply the external force field to the data
 __device__ void force(Vector2f x, Vector2f* field, Vector2f C, Vector2f F, float timestep, float r, unsigned dim) {
-    float xC[2] = { x.x - C.x, x.y - C.y };
-    float exp_val = (xC[0] * xC[0] + xC[1] * xC[1]) / r;
-    int i = static_cast<int>(x.x);
-    int j = static_cast<int>(x.y);
-    float factor = timestep * expf(-exp_val) * 0.001f;
-    Vector2f temp = F * factor;
-    if (i >= 0 && i < dim && j >= 0 && j < dim) {
-        field[IND(i, j, dim)] += temp;
+    if (periodic == 1){
+        // Apply periodic wrapping to the position
+        // Apply periodic wrapping to the center position
+        Vector2f xC = x - C;
+        xC.x = fmodf(xC.x + dim / 2.0f, dim) - dim / 2.0f;
+        xC.y = fmodf(xC.y + dim / 2.0f, dim) - dim / 2.0f;
+
+        float exp_val = (xC.x * xC.x + xC.y * xC.y) / r;
+        float factor = timestep * expf(-exp_val) * 0.001f;
+        Vector2f temp = F * factor;
+
+        int idx = IND(static_cast<int>(x.x), static_cast<int>(x.y), dim);
+        field[idx] += temp;
+    }
+
+    else {
+        float xC[2] = { x.x - C.x, x.y - C.y };
+        float exp_val = (xC[0] * xC[0] + xC[1] * xC[1]) / r;
+        int i = static_cast<int>(x.x);
+        int j = static_cast<int>(x.y);
+        float factor = timestep * expf(-exp_val) * 0.001f;
+        Vector2f temp = F * factor;
+        if (i >= 0 && i < dim && j >= 0 && j < dim) {
+            field[IND(i, j, dim)] += temp;
+        }
     }
 }
 
@@ -64,15 +81,28 @@ __device__ void advect(Vector2f x, Vector2f* field, Vector2f* velfield, float ti
 
     // Combine to get final position
     Vector2f pos = x - (dt0 / 6.0f) * (k1 + 2.0f * k2 + 2.0f * k3 + k4);
+    if (periodic ==1){
+        // Apply periodic wrapping to the position
+    pos.x = fmodf(pos.x + dim, dim);
+    pos.y = fmodf(pos.y + dim, dim);
 
     // Interpolate the field at the backtraced position
+    int idx = IND(static_cast<int>(x.x), static_cast<int>(x.y), dim);
+    field[idx] = bilinearInterpolation(pos, field, dim);
+    }
+
+    else {
+    // Interpolate the field at the backtraced position
     field[IND(static_cast<int>(x.x), static_cast<int>(x.y), dim)] = bilinearInterpolation(pos, field, dim);
+    }
 }
 
 // Third step: diffuse the data
 template <typename T>
 __device__ void jacobi(Vector2f x, T* field, float alpha, float beta, T b, T zero, unsigned dim)
 { 
+    int i = (int)x.x; // or x(0) if x is accessed that way
+    int j = (int)x.y; // or x(1)
     if (periodic ==1) {
         // Use periodic indexing
     int iL = periodicIndex(i - 1, dim);
@@ -91,8 +121,7 @@ __device__ void jacobi(Vector2f x, T* field, float alpha, float beta, T b, T zer
     }
 
     else {
-    int i = (int)x.x; // or x(0) if x is accessed that way
-    int j = (int)x.y; // or x(1)
+
 
     // Left neighbor
     T f00 = (i - 1 < 0 || i - 1 >= dim || j < 0 || j >= dim) ? zero : field[IND(i - 1, j, dim)];
@@ -118,13 +147,32 @@ __device__ float divergence(Vector2f x, Vector2f* from, float halfrdx, unsigned 
     if (i < 0 || i >= dim || j < 0 || j >= dim)
         return 0.0f;
 
-    Vector2f wL = (i > 0) ? from[IND(i - 1, j, dim)] : Vector2f::Zero();
-    Vector2f wR = (i < dim - 1) ? from[IND(i + 1, j, dim)] : Vector2f::Zero();
-    Vector2f wB = (j > 0) ? from[IND(i, j - 1, dim)] : Vector2f::Zero();
-    Vector2f wT = (j < dim - 1) ? from[IND(i, j + 1, dim)] : Vector2f::Zero();
+    if (periodic ==1){
+        // Use periodic indexing
+        int iL = periodicIndex(i - 1, dim);
+        int iR = periodicIndex(i + 1, dim);
+        int jB = periodicIndex(j - 1, dim);
+        int jT = periodicIndex(j + 1, dim);
 
-    float div = halfrdx * ((wR.x - wL.x) + (wT.y - wB.y));
-    return div;
+        Vector2f wL = from[IND(iL, j, dim)];
+        Vector2f wR = from[IND(iR, j, dim)];
+        Vector2f wB = from[IND(i, jB, dim)];
+        Vector2f wT = from[IND(i, jT, dim)];
+
+        float div = halfrdx * ((wR.x - wL.x) + (wT.y - wB.y));
+        return div;
+        }
+
+    else {
+
+        Vector2f wL = (i > 0) ? from[IND(i - 1, j, dim)] : Vector2f::Zero();
+        Vector2f wR = (i < dim - 1) ? from[IND(i + 1, j, dim)] : Vector2f::Zero();
+        Vector2f wB = (j > 0) ? from[IND(i, j - 1, dim)] : Vector2f::Zero();
+        Vector2f wT = (j < dim - 1) ? from[IND(i, j + 1, dim)] : Vector2f::Zero();
+
+        float div = halfrdx * ((wR.x - wL.x) + (wT.y - wB.y));
+        return div;
+    } 
 }
 
 // Obtain the approximate gradient of a scalar field
@@ -135,6 +183,24 @@ __device__ Vector2f gradient(Vector2f x, float* p, float halfrdx, unsigned dim) 
     if (i < 0 || i >= dim || j < 0 || j >= dim)
         return Vector2f::Zero();
 
+    if (periodic == 1){
+        int iL = periodicIndex(i - 1, dim);
+        int iR = periodicIndex(i + 1, dim);
+        int jB = periodicIndex(j - 1, dim);
+        int jT = periodicIndex(j + 1, dim);
+
+        float pL = p[IND(iL, j, dim)];
+        float pR = p[IND(iR, j, dim)];
+        float pB = p[IND(i, jB, dim)];
+        float pT = p[IND(i, jT, dim)];
+
+        Vector2f grad;
+        grad.x = halfrdx * (pR - pL);
+        grad.y = halfrdx * (pT - pB);
+        return grad;
+    }
+    else {
+    
     float pL = (i > 0) ? p[IND(i - 1, j, dim)] : 0.0f;
     float pR = (i < dim - 1) ? p[IND(i + 1, j, dim)] : 0.0f;
     float pB = (j > 0) ? p[IND(i, j - 1, dim)] : 0.0f;
@@ -143,7 +209,8 @@ __device__ Vector2f gradient(Vector2f x, float* p, float halfrdx, unsigned dim) 
     Vector2f grad;
     grad.x = halfrdx * (pR - pL);
     grad.y = halfrdx * (pT - pB);
-    return grad;
+    return grad; 
+    }
 }
 
 // Navier-Stokes kernel
@@ -180,8 +247,9 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, float c_ambient, float
     // Diffusion
     float alpha = rdx * rdx / (viscosity * timestep);
     float beta = 4.0f + alpha;
-    jacobi<Vector2f>(x, u, alpha, beta, u[IND(i, j, dim)], Vector2f::Zero(), dim);
-    __syncthreads();
+    for (int iter =0; iter<NUM_OF_DIFFUSION_STEPS; iter++){
+        jacobi<Vector2f>(x, u, alpha, beta, u[IND(i, j, dim)], Vector2f::Zero(), dim);
+        __syncthreads(); }
 
     // __syncthreads();
 
@@ -197,27 +265,27 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, float c_ambient, float
     Vector2f grad_p = gradient(x, p, 0.5f * rdx, dim);
     u[IND(i, j, dim)] -= grad_p;
     __syncthreads();
-
+    
+    if (advect_scalar_bool==1 ) {
     //     // Advection of scalar field c
-    // advectScalar(x, c, u, timestep, rdx, dim);
-    // __syncthreads();
+    advectScalar(x, c, u, timestep, rdx, dim);
+    __syncthreads();
 
-    // // Diffusion of scalar field c
-    // diffuseScalar(x, c, diffusionRate, timestep, rdx, dim);
-    // __syncthreads();
+    // Diffusion of scalar field c
+    diffuseScalar(x, c, diffusionRate, timestep, rdx, dim);
+    __syncthreads();
 
-    //     // **Applica la forza di galleggiamento basata su c**
-    // applyBuoyancy(x, u, c, c_ambient, betabouyancy, gravity, dim);
-    // __syncthreads();
-
-
-
+        // **Applica la forza di galleggiamento basata su c**
+    applyBuoyancy(x, u, c, c_ambient, betabouyancy, gravity, dim);
+    __syncthreads(); 
+    }
 }
 
 int main(int argc, char** argv) {
     float c_ambient = 0.0f;    // Valore ambientale di c
     float betabouyancy = 1.0f;         // Coefficiente di espansione (regola l'influenza di c su u)
     float gravity = -9.81f;  
+    int framecount = 0;
 
     // Define wind direction and magnitude
     Vector2f windDirection(1.0f, 2.0f); // Wind blowing to the right
@@ -338,42 +406,46 @@ int main(int argc, char** argv) {
         cudaDeviceSynchronize();
 
         // Map the velocity field to colors
-        colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dim);
+        
+        framecount++;
+        if (framecount % 100 == 0) {
+            colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dim);
+        
 
-        // Check for CUDA errors
-        err = cudaGetLastError();
-        if (err != cudaSuccess) {
-            printf("CUDA Error after colorKernel: %s\n", cudaGetErrorString(err));
-            return 1;
+            // Check for CUDA errors
+            err = cudaGetLastError();
+            if (err != cudaSuccess) {
+                printf("CUDA Error after colorKernel: %s\n", cudaGetErrorString(err));
+                return 1;
+            }
+
+            cudaDeviceSynchronize();
+
+            // Copy color data from device to host
+            cudaMemcpy(colorField, dev_colorField, dim * dim * sizeof(Vector3f), cudaMemcpyDeviceToHost);
+
+            // Update the texture
+            glBindTexture(GL_TEXTURE_2D, textureID);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, dim, dim, 0, GL_RGB, GL_FLOAT, colorField);
+
+            // Render the texture
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            glEnable(GL_TEXTURE_2D);
+            glBegin(GL_QUADS);
+            glTexCoord2f(0, 0); glVertex2f(0, 0);
+            glTexCoord2f(1, 0); glVertex2f(RES, 0);
+            glTexCoord2f(1, 1); glVertex2f(RES, RES);
+            glTexCoord2f(0, 1); glVertex2f(0, RES);
+            glEnd();
+            glDisable(GL_TEXTURE_2D);
+
+            // Swap buffers
+            glfwSwapBuffers(window);
+
+            // Poll for and process events
+            glfwPollEvents();
         }
-
-        cudaDeviceSynchronize();
-
-        // Copy color data from device to host
-        cudaMemcpy(colorField, dev_colorField, dim * dim * sizeof(Vector3f), cudaMemcpyDeviceToHost);
-
-        // Update the texture
-        glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, dim, dim, 0, GL_RGB, GL_FLOAT, colorField);
-
-        // Render the texture
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        glEnable(GL_TEXTURE_2D);
-        glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(0, 0);
-        glTexCoord2f(1, 0); glVertex2f(RES, 0);
-        glTexCoord2f(1, 1); glVertex2f(RES, RES);
-        glTexCoord2f(0, 1); glVertex2f(0, RES);
-        glEnd();
-        glDisable(GL_TEXTURE_2D);
-
-        // Swap buffers
-        glfwSwapBuffers(window);
-
-        // Poll for and process events
-        glfwPollEvents();
-
         // Decay the force
         // decayForce();
 
@@ -396,3 +468,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
