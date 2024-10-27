@@ -24,7 +24,10 @@ The 2D Navier-Stokes equations for incompressible fluid flow are given by:
 
 The simulation uses a **grid-based finite difference method** to discretize the equations:
 
-1. **Advection**: Solved using a semi-Lagrangian method with bilinear interpolation, transporting the fluid quantities along the velocity field.
+1. **Advection**: Solved using a semi-Lagrangian method with bilinear interpolation, transporting the fluid quantities along the velocity field. HEART OF SIM ---> It solves the nonlinearity in the NS equations. Two steps:
+     1. Backtrace the particle (RK4) to its original position
+     2. Interpolate the field at the backtraced position
+  The backtracing is computed using a fourth-order Runge-Kutta integration scheme.
 2. **Diffusion**: Approximated with a **Jacobi iteration**, applying diffusion to the velocity field using iterative relaxation.
 3. **Pressure Projection**: A Poisson equation is solved iteratively to ensure the velocity field remains divergence-free, maintaining incompressibility.
 4. **Force Application**: External forces, like a central force, are applied to simulate interactions with the fluid. The forces are introduced as a source term in the momentum equation.
@@ -32,10 +35,10 @@ The simulation uses a **grid-based finite difference method** to discretize the 
 
 ## Key Features
 
-- **GPU Acceleration**: Leveraging CUDA for parallel computation, significantly speeding up the simulation.
-- **Real-Time Visualization**: Visualization of the fluid dynamics using color maps representing the velocity magnitude.
-- **Interactive Central Force**: Apply customizable forces at the center of the grid to observe fluid behavior.
-- **Obstacle Integration**: The code supports adding static obstacles to the simulation, modifying fluid flow around them.
+- **GPU Acceleration**
+- **Real-Time Visualization**
+- **Interactive Central Force**
+- **Obstacle Integration**
 
 ## Installation
 All needed libraries are included in the directory. Change paths in .vscode/task.json. Execute Run Build Task, Ctrl Shift B. The simulation parameters are in scalar.h
