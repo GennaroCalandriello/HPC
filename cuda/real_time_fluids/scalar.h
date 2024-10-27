@@ -9,31 +9,31 @@
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define VEL 150
-#define TIMESTEP 0.001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
+#define VEL 1250
+#define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
 #define DIM 1100
 #define RES 1100
-#define VISCOSITY 10.0f
+#define VISCOSITY 0.0001f
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
 #define NUM_TIMESTEPS 300
 #define MAX_VELOCITY VEL  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
 #define JETX DIM / 2
-#define JETY 0
-#define JETRADIUS DIM / 50
+#define JETY 322
+#define JETRADIUS DIM / 20
 #define JETSPEED VEL
 #define VORTEX_CENTER_X DIM/2
 #define VORTEX_CENTER_Y DIM / 2
 #define VORTEX_STRENGTH 2.0f
-#define VORTEX_RADIUS DIM / 20
-#define NUM_OF_DIFFUSION_STEPS 2
+#define VORTEX_RADIUS DIM / 40
+#define NUM_OF_DIFFUSION_STEPS 1
 #define RENDERING 10 //Graphic parameter
-#define BETA_BOUYANCY 0.0f
+#define BETA_BOUYANCY 0.9f
 
 //Bool variables
-#define FLUID_INJ 0
-#define PERIODIC_FORCE 1
-#define VORTEX 1
+#define FLUID_INJ 1
+#define PERIODIC_FORCE 0
+#define VORTEX 0
 
 // CUDA kernel parameters
 #define BLOCKSIZEY 16
@@ -51,7 +51,7 @@ unsigned dim = DIM;
 float rdx = static_cast<float>(RES) / dim;
 float viscosity = VISCOSITY;
 float r = 4000;
-float magnitude = 5000.0f;
+float magnitude = 5.0f;
 
 struct Vector2f {
     float x, y;
@@ -310,7 +310,8 @@ __device__ float interpolateScalar(Vector2f pos, float* field, unsigned dim) {
 
 __device__ void advectScalar(Vector2f x, float* field, Vector2f* velfield, float timestep, float rdx, unsigned dim) {
     float dt0 = timestep * rdx;
-
+    // RK4 integration
+    
     // Compute k1
     Vector2f k1 = velocityAt(x, velfield, dim);
     Vector2f x1 = x - 0.5f * dt0 * k1;
