@@ -8,10 +8,7 @@ The 2D Navier-Stokes equations for incompressible fluid flow are given by:
 
 1. **Momentum Equation**:
 
-   \[
-   \frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla) \mathbf{u} = -\frac{1}{\rho} \nabla p + \nu \nabla^2 \mathbf{u} + \mathbf{f}
-   \]
-
+∂u/∂t + (u · ∇)u = - (1/ρ) ∇p + ν ∇²u + f
    - \( \mathbf{u} \): Velocity vector field
    - \( p \): Pressure
    - \( \rho \): Fluid density (assumed constant)
