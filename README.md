@@ -24,7 +24,7 @@ The 2D Navier-Stokes equations for incompressible fluid flow are given by:
 
 The simulation uses a **grid-based finite difference method** to discretize the equations:
 
-1. **Advection**: Solved using a semi-Lagrangian method with bilinear interpolation, transporting the fluid quantities along the velocity field. HEART OF SIM ---> It solves the nonlinearity in the NS equations. Two steps:
+1. **Advection**: Solved using a semi-Lagrangian method with bilinear interpolation. Transport the fluid quantities along the velocity field (i.e. advect the data through method of characteristics) HEART OF SIM ---> It solves the nonlinearity in the NS equations. Two steps:
      1. Backtrace the particle (RK4) to its original position
      2. Interpolate the field at the backtraced position
   The backtracing is computed using a fourth-order Runge-Kutta integration scheme.
