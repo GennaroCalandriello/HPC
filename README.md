@@ -28,7 +28,7 @@ The simulation uses a **grid-based finite difference method** to discretize the 
 2. **Diffusion**: Approximated with a **Jacobi iteration**, applying diffusion to the velocity field using iterative relaxation.
 3. **Pressure Projection**: A Poisson equation is solved iteratively to ensure the velocity field remains divergence-free, maintaining incompressibility.
 4. **Force Application**: External forces, like a central force, are applied to simulate interactions with the fluid. The forces are introduced as a source term in the momentum equation.
-5. **Boundary Conditions**: The simulation enforces zero velocity (no-slip) at the domain boundaries and handles interactions with obstacles using explicit boundary conditions.
+5. **Boundary Conditions**: The simulation enforces zero velocity (no-slip), or PBC at the domain boundaries and handles interactions with obstacles using explicit boundary conditions (questo ancora no).
 
 ## Key Features
 
