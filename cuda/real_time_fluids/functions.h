@@ -276,33 +276,28 @@ __device__ void injectFluid(Vector2f* u, unsigned dim) {
         return;
 
     int idx = IND(i, j, dim);
+
     // Parameters for the jet
-    int jetX = JETX; // Left boundary
-    int jetY = JETY; // Center vertically
+    int jetX = JETX;       // Center of the jet in the horizontal (x) direction
+    int jetY = 0;          // Bottom boundary (j = 0)
     float jetRadius = JETRADIUS;
-    float jetSpeed = JETSPEED; // Adjust as needed
+    float jetSpeed = JETSPEED; // Positive value for upward flow
 
-    // Calculate distance from the jet center
-    float dy = j - jetY;
+    // Calculate horizontal distance from the jet center
     float dx = i - jetX;
-    float distance = fabsf(dy);
+    float distance = fabsf(dx);
 
-    if (i == jetX && distance < jetRadius) {
-        // Inject fluid by setting the velocity
+    // Check if the current cell is at the bottom boundary and within the jet radius
+    if (j == jetY && distance < jetRadius) {
+        // Compute the strength of the jet at this position
         float strength = (jetRadius - distance) / jetRadius;
-        u[idx].x = jetSpeed * strength;
-        u[idx].y = 0.1f;
+
+        // Inject fluid by setting the vertical velocity upwards
+        u[idx].x = 0.0f;                // No horizontal velocity
+        u[idx].y = jetSpeed * strength; // Vertical velocity upwards
     }
-    //deve decadere esponenzialmente il flow
-    float exp_val = (dx * dx + dy * dy) / (jetRadius);
-    float factor = TIMESTEP * expf(-exp_val) * 0.001f;
-    Vector2f F = Vector2f(1.0f, 1.0f);
-    Vector2f temp = factor*F;
-    u[idx] -= temp;
-
-
-    __syncthreads();
 }
+
 
 __device__ void applyVortex(Vector2f* u, Vector2f F, unsigned dim) {
     // Vortex parameters
@@ -365,11 +360,11 @@ __device__ void applyVortex(Vector2f* u, Vector2f F, unsigned dim) {
             float vy = weight * dx * inv_distance;
 
             // Update the velocity field
-            //Gaussian decay:
-            float exp_val = (dx * dx + dy * dy) / (vortexRadius);
-            float factor = timestep * expf(-exp_val) * 0.001f;
-            Vector2f temp = F * factor;
-            u[idx] += temp;
+            // //Gaussian decay:
+            // float exp_val = (dx * dx + dy * dy) / (vortexRadius);
+            // float factor = timestep * expf(-exp_val) * 0.001f;
+            // Vector2f temp = F * factor;
+            // u[idx] += temp;
             // u[idx].x += vx;
             // u[idx].y += vy;
             u[idx].x += vx;

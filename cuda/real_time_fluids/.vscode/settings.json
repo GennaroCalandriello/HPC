@@ -1,5 +1,8 @@
 {
     "files.associations": {
         "dense": "cpp"
+    },
+    "workbench.colorCustomizations": {
+
     }
 }

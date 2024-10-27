@@ -294,8 +294,8 @@ int main(int argc, char** argv) {
 
     // Force parameters
     // C = Vector2f(static_cast<float>(dim) / 2.0f, static_cast<float>(dim) / 2.0f); // Center of the domain
-    C = Vector2f(0, 0);
-    F = Vector2f(0.0f, 0.8f); // Initial force
+    // C = Vector2f(0, 0);
+    // F = Vector2f(0.0f, 0.8f); // Initial force
 
     // Velocity vector field and pressure scalar field
     Vector2f* u = (Vector2f*)malloc(dim * dim * sizeof(Vector2f));
@@ -389,7 +389,7 @@ int main(int argc, char** argv) {
         float time = glfwGetTime();
 
         if (PERIODIC_FORCE == 1) {
-            F = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
+            F = Vector2f(magnitude * sin(time), 0.0f); // Initial force
         }
         // F1 = Vector2f(magnitude * sin(time), magnitude * cos(time)); // Initial force
         C = Vector2f(dim / 2.0f + 50.0f * sinf(glfwGetTime()), dim / 2.0f);
