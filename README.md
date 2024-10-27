@@ -9,17 +9,16 @@ The 2D Navier-Stokes equations for incompressible fluid flow are given by:
 1. **Momentum Equation**:
 
 ∂u/∂t + (u · ∇)u = - (1/ρ) ∇p + ν ∇²u + f
-   - \( \mathbf{u} \): Velocity vector field
-   - \( p \): Pressure
-   - \( \rho \): Fluid density (assumed constant)
-   - \( \nu \): Kinematic viscosity
-   - \( \mathbf{f} \): External forces (e.g., a central force applied to the fluid)
+
+- `u`: Velocity vector field
+- `p`: Pressure
+- `ρ`: Fluid density (assumed constant)
+- `ν`: Kinematic viscosity
+- `f`: External forces (e.g., a central force applied to the fluid)
 
 2. **Incompressibility Condition**:
 
-   \[
-   \nabla \cdot \mathbf{u} = 0
-   \]
+∇ · u = 0
 
 ## Numerical Method
 
@@ -39,14 +38,5 @@ The simulation uses a **grid-based finite difference method** to discretize the 
 - **Obstacle Integration**: The code supports adding static obstacles to the simulation, modifying fluid flow around them.
 
 ## Installation
+All needed libraries are included in the directory. Change paths in .vscode/task.json. Execute Run Build Task, Ctrl Shift B. The simulation parameters are in scalar.h
 
-To compile and run the simulation, ensure you have the necessary dependencies installed:
-
-- **CUDA** (for GPU computation)
-- **GLFW** (for visualization)
-- **OpenGL** (for rendering, using GLFW for the context)
-
-Compile the code using the following command:
-
-```bash
-nvcc -o fluidsimulation mainfluids.cu -lglfw
