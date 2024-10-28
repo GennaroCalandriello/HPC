@@ -246,7 +246,7 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, float c_ambient, float
    
     // Diffusion
     float alpha = rdx * rdx / (viscosity * timestep);
-    float beta = 8.0f + alpha;
+    float beta = 4.0f + alpha;
     for (int iter =0; iter<NUM_OF_DIFFUSION_STEPS; iter++){
         jacobi<Vector2f>(x, u, alpha, beta, u[IND(i, j, dim)], Vector2f::Zero(), dim);
         __syncthreads(); }

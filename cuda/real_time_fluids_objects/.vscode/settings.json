@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "dense": "cpp"
+    },
+    "workbench.colorCustomizations": {
+        "activityBar.background": "#010a3e",
+        "titleBar.activeBackground": "#050132",
+        "titleBar.activeForeground": "#e5fabb"
+    }
+}

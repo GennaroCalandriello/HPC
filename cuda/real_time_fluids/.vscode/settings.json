@@ -3,5 +3,8 @@
         "dense": "cpp"
     },
     "workbench.colorCustomizations": {
+        "activityBar.background": "#432144",
+        "titleBar.activeBackground": "#5E2E60",
+        "titleBar.activeForeground": "#FCF9FC"
     }
 }
