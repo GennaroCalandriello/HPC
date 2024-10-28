@@ -9,18 +9,18 @@
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define VEL 1250
+#define VEL 9250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
 #define DIM 1100
 #define RES 1100
-#define VISCOSITY 0.0001f
+#define VISCOSITY 0.01f
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
 #define NUM_TIMESTEPS 300
 #define MAX_VELOCITY VEL  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
 #define JETX DIM / 2
 #define JETY 322
-#define JETRADIUS DIM / 20
+#define JETRADIUS DIM / 50
 #define JETSPEED VEL
 #define VORTEX_CENTER_X DIM/2
 #define VORTEX_CENTER_Y DIM / 2
@@ -28,7 +28,7 @@
 #define VORTEX_RADIUS DIM / 40
 #define NUM_OF_DIFFUSION_STEPS 1
 #define RENDERING 10 //Graphic parameter
-#define BETA_BOUYANCY 0.9f
+#define BETA_BOUYANCY -5.0f // A negative value can simulate fire (?)
 
 //Bool variables
 #define FLUID_INJ 1
@@ -36,8 +36,8 @@
 #define VORTEX 0
 
 // CUDA kernel parameters
-#define BLOCKSIZEY 16
-#define BLOCKSIZEX 16
+#define BLOCKSIZEY 32
+#define BLOCKSIZEX 32
 
 // Buondary parameter
 #define periodic 1 // 1 if periodic boundary conditions are used, 0 otherwise
