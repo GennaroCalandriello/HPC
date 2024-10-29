@@ -293,15 +293,16 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, int* obstacleField, fl
 
 
 int main(int argc, char** argv) {
-    float c_ambient = 0.0f;    // Ambient value of c
+    //generate a random float number
+    
     float betabouyancy = BETA_BOUYANCY; // Buoyancy coefficient
     float gravity = -9.81f;
     int framecount = 0;
 
     // Obstacle parameters
-    float obstacleCenterX = dim / 2.0f; // Center of the domain
-    float obstacleCenterY = dim / 2.0f;
-    float obstacleRadius = dim / 10.0f; // Adjust as needed
+    // float obstacleCenterX = dim / 2.0f; // Center of the domain
+    // float obstacleCenterY = dim / 2.0f;
+    // float obstacleRadius = dim / 10.0f; // Adjust as needed
 
     // Allocate and initialize obstacle field
     int* obstacleField = (int*)malloc(dim * dim * sizeof(int));
@@ -323,7 +324,7 @@ int main(int argc, char** argv) {
     for (unsigned i = 0; i < dim * dim; i++) {
         u[i] = Vector2f::Zero();
         p[i] = 0.0f;
-        c[i] = 0.0001f;
+        c[i] = 0.0f;
     }
 
     // Device memory allocation
@@ -387,10 +388,14 @@ int main(int argc, char** argv) {
     dim3 threads(BLOCKSIZEX, BLOCKSIZEY);
     dim3 blocks((dim + BLOCKSIZEX - 1) / BLOCKSIZEX, (dim + BLOCKSIZEY - 1) / BLOCKSIZEY);
 
-    // Simulation loop
+    // ------------------------------------------------------------S I M U L A T I O N    L O O P--------------------------------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     while (!glfwWindowShouldClose(window)) {
+
         // Time step
         float time = glfwGetTime();
+        float randomFloat = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        float c_ambient = randomFloat;    // Ambient value of c
 
         if (PERIODIC_FORCE == 1) {
             F = Vector2f(magnitude * sin(time), 0.0f); // Initial force
@@ -412,10 +417,16 @@ int main(int argc, char** argv) {
 
         framecount++;
         if (framecount % RENDERING == 0) {
+            
             // Map the velocity field to colors
-            // colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dev_obstacleField, dim);
-            colorKernelScalar<<<blocks, threads>>>(dev_colorField, dev_c, dev_obstacleField, dim, MAX_SCALAR);
-            printf("dev color field: %p\n", dev_c);
+
+            if (PLOT_VELOCITY == 1){
+                colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dev_obstacleField, dim);
+                }
+
+            if (PLOT_SCALAR ==1){
+                colorKernelScalar<<<blocks, threads>>>(dev_colorField, dev_p, dev_obstacleField, dim, MAX_SCALAR);
+                }
 
             // Check for CUDA errors
             err = cudaGetLastError();
