@@ -425,14 +425,22 @@ __device__ void applyVortex(Vector2f* u, Vector2f F, unsigned dim) {
 }
 
 // Map velocity magnitude to color using the colormap
-__global__ void colorKernel(Vector3f* colorField, Vector2f* velocityField, unsigned dim) {
+__global__ void colorKernel(Vector3f* colorField, Vector2f* velocityField, int* obstacleField, unsigned dim) {
+
     int i = blockDim.x * blockIdx.x + threadIdx.x;
     int j = blockDim.y * blockIdx.y + threadIdx.y;
+    int idx = IND(i, j, dim);
 
     if (i >= dim || j >= dim)
         return;
 
-    int idx = IND(i, j, dim);
+    // Check if the current cell is an obstacle
+    if (obstacleField[idx] == 1) {
+        // Set color for obstacle cells (e.g., gray)
+        colorField[idx] = Vector3f(0.0f, 33.0f, 78.0f); // Gray color for obstacles
+        return;
+    }
+    
     float velocityMagnitude = velocityField[idx].norm();
 
     // Normalize the magnitude
@@ -450,6 +458,75 @@ __global__ void colorKernel(Vector3f* colorField, Vector2f* velocityField, unsig
     // float g = viridis_colormap[colorIndex][1];
     // float b = viridis_colormap[colorIndex][2];
 
+    float r = blue_to_white_colormap[colorIndex][0];
+    float g = blue_to_white_colormap[colorIndex][1];
+    float b = blue_to_white_colormap[colorIndex][2];
+
+    colorField[idx] = Vector3f(r, g, b);
+}
+
+// __global__ void colorKernelScalar(Vector3f* colorField, float* scalarField, unsigned int dim, float maxScalar) {
+
+//     int i = blockDim.x * blockIdx.x + threadIdx.x;
+//     int j = blockDim.y * blockIdx.y + threadIdx.y;
+
+//     if (i >= dim || j >= dim)
+//         return;
+
+//     int idx = IND(i, j, dim);
+//     float scalarValue = scalarField[idx];
+
+//     // Normalize the scalar value
+//     float normalizedScalar = scalarValue / maxScalar;
+
+//     // Clamp the value between 0 and 1
+//     normalizedScalar = CLAMP(normalizedScalar);
+
+//     // Map to color using the colormap
+//     int colorIndex = static_cast<int>(normalizedScalar * 255.0f);
+//     colorIndex = min(max(colorIndex, 0), 255);
+
+//     // Access the colormap
+//     // float r = viridis_colormap[colorIndex][0];
+//     // float g = viridis_colormap[colorIndex][1];
+//     // float b = viridis_colormap[colorIndex][2];
+
+//     float r = blue_to_white_colormap[colorIndex][0];
+//     float g = blue_to_white_colormap[colorIndex][1];
+//     float b = blue_to_white_colormap[colorIndex][2];
+
+//     colorField[idx] = Vector3f(r, g, b);
+// }
+// Map scalar field to color using the colormap, considering obstacles
+__global__ void colorKernelScalar(Vector3f* colorField, float* scalarField, int* obstacleField, unsigned dim, float maxScalar) {
+    int i = blockDim.x * blockIdx.x + threadIdx.x;
+    int j = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (i >= dim || j >= dim)
+        return;
+
+    int idx = IND(i, j, dim);
+
+    // Check if the current cell is an obstacle
+    if (obstacleField[idx] == 1) {
+        // Set color for obstacle cells (e.g., gray)
+        colorField[idx] = Vector3f(0.5f, 0.5f, 0.5f); // Gray color for obstacles
+        return;
+    }
+
+    float scalarValue = scalarField[idx];
+
+    // Normalize the scalar value
+    float normalizedValue = scalarValue / maxScalar;
+
+    // Clamp the value between 0 and 1
+    normalizedValue = fmaxf(0.0f, fminf(normalizedValue, 1.0f));
+
+    // Map to color using the colormap
+    int colorIndex = static_cast<int>(normalizedValue * 255.0f);
+    colorIndex = min(max(colorIndex, 0), 255);
+
+    // Access the colormap (blue to white example)
     float r = blue_to_white_colormap[colorIndex][0];
     float g = blue_to_white_colormap[colorIndex][1];
     float b = blue_to_white_colormap[colorIndex][2];

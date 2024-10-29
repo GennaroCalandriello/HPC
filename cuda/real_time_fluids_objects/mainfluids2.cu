@@ -270,20 +270,25 @@ __global__ void NSkernel(Vector2f* u, float* p, float* c, int* obstacleField, fl
         injectFluid(u, dim);
         __syncthreads();
 
-    // if (advect_scalar_bool == 1) {
-    //     // Advection of scalar field c
-    //     advectScalar(x, c, u, obstacleField, timestep, rdx, dim);
-    //     __syncthreads();
+        if (boolvortex == 1)
+            applyVortex(u, F,dim);
+            __syncthreads();
+
+    if (advect_scalar_bool == 1) {
+        // Advection of scalar field c
+        advectScalar(x, c, u, obstacleField, timestep, rdx, dim);
+        __syncthreads();
 
     //     // Diffusion of scalar field c
-    //     diffuseScalar(x, c, obstacleField, diffusion_rate, timestep, rdx, dim);
-    //     __syncthreads();
+        diffuseScalar(x, c, obstacleField, diffusion_rate, timestep, rdx, dim);
+        __syncthreads();
 
     //     // Apply buoyancy force based on c
-    //     applyBuoyancy(x, u, c, c_ambient, betabouyancy, gravity, dim);
-    //     __syncthreads();
-    // }
+        applyBuoyancy(x, u, c, obstacleField, c_ambient, betabouyancy, gravity, dim);
+        __syncthreads();
+    }
 }
+
 
 
 
@@ -408,7 +413,9 @@ int main(int argc, char** argv) {
         framecount++;
         if (framecount % RENDERING == 0) {
             // Map the velocity field to colors
-            colorKernel<<<blocks, threads>>>(dev_colorField, dev_u,  dim);
+            // colorKernel<<<blocks, threads>>>(dev_colorField, dev_u, dev_obstacleField, dim);
+            colorKernelScalar<<<blocks, threads>>>(dev_colorField, dev_c, dev_obstacleField, dim, MAX_SCALAR);
+            printf("dev color field: %p\n", dev_c);
 
             // Check for CUDA errors
             err = cudaGetLastError();
