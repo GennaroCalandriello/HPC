@@ -65,13 +65,13 @@ void initializeObstacle(int* obstacleField, unsigned dim, float centerX, float c
     }
 
     // Crea un edificio rettangolare
-    initializeRectangle(obstacleField, dim, centerX-radius-200,100, 150, 800);
-    initializeRectangle(obstacleField, dim, centerX+radius+20,100, 150, 800);
-    // Crea un corridoio orizzontale (strada)
-    // initializeCorridor(obstacleField, dim, 10, 100, 1000, false);
+    // initializeRectangle(obstacleField, dim, centerX-100,600, 200, 200);
+    // initializeRectangle(obstacleField, dim, centerX+radius+20,100, 150, 800);
+    // // Crea un corridoio orizzontale (strada)
+    // // initializeCorridor(obstacleField, dim, 10, 100, 1000, false);
 
-    // // Crea un corridoio verticale (strada)
-    initializeCorridor(obstacleField, dim, 100, 10, 10, true);
+    // // // Crea un corridoio verticale (strada)
+    // initializeCorridor(obstacleField, dim, 100, 10, 10, true);
 
     // // Crea un ostacolo cilindrico
     initializeCylinder(obstacleField, dim, centerX, centerY, radius);
