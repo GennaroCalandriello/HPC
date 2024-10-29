@@ -9,7 +9,7 @@
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define VEL 2250
+#define VEL 3250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
 #define DIM 1100
 #define RES 1100
@@ -27,7 +27,7 @@
 #define VORTEX_RADIUS DIM / 20
 #define NUM_OF_DIFFUSION_STEPS 1
 #define RENDERING 10 //Graphic parameter
-#define BETA_BOUYANCY 15.0f // A negative value can simulate fire (?)
+#define BETA_BOUYANCY -1.0f // A negative value can simulate fire (?)
 
 //Bool variables
 #define FLUID_INJ 1
@@ -45,8 +45,15 @@
 #define diffusion_rate 0.001f // Diffusion rate of the scalar field  
 
 //graphic parameters visualization
-#define MAX_VELOCITY VEL  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
-#define MAX_SCALAR 0.117647f // Adjust as needed for normalization (used in colorKernelScalar--graphic parameter)
+#define MAX_VELOCITY VEL/4  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
+#define MAX_SCALAR 500 // Adjust as needed for normalization (used in colorKernelScalar--graphic parameter)
+#define PLOT_SCALAR 1 // 1 if the scalar field is plotted, 0 otherwise
+#define PLOT_VELOCITY 0 // 1 if the velocity field is plotted, 0 otherwise
+
+//Obstacle position
+#define obstacleCenterX  DIM / 2.0f // Center of the domain
+#define obstacleCenterY DIM / 3.0f
+#define obstacleRadius DIM / 10.0f // Adjust as needed
 
 // Simulation parameters
 float timestep = TIMESTEP;
