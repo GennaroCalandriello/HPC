@@ -6,28 +6,38 @@
 // Include GLFW
 #include "glfw-3.4.bin.WIN64/include/GLFW//glfw3.h"
 
+//-----------------------------V I S C O S I T Y--------------------------------
+#define VISCOSITY 1e-2f
+//parametro grafico per la normalizzazione di u
+#define GRAPHIC_VEL_SCALING 1.0f 
+
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define VEL 3250
+#define VEL 2250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
-#define DIM 1100
-#define RES 1100
-#define VISCOSITY 1
+#define DIM 1200
+#define RES DIM
+
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
 #define NUM_TIMESTEPS 300
 #define JETX DIM / 2
-#define JETY 322
-#define JETRADIUS DIM / 4
+#define JETY 0
+#define JETRADIUS DIM
 #define JETSPEED VEL
-#define VORTEX_CENTER_X DIM/4
-#define VORTEX_CENTER_Y DIM / 4
-#define VORTEX_STRENGTH 12.0f
-#define VORTEX_RADIUS DIM / 20
+#define VORTEX_CENTER_X DIM/2
+#define VORTEX_CENTER_Y DIM / 2
+#define VORTEX_STRENGTH 15.0f
+#define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
-#define RENDERING 10 //Graphic parameter
-#define BETA_BOUYANCY -1.0f // A negative value can simulate fire (?)
+
+
+//Fbuoyancy =−ρβ(T−Tambient)g
+#define BETA_BOUYANCY 2e-3f // coefficiente di espansione termica (coefficiente di galleggiamento)
+// float betaBuoyancy = 3.4e-3f; // Coefficiente di espansione termica dell'aria
+// float gravity = -9.81f;       // Accelerazione di gravità
+#define C_AMBIENT 29.15f   // Temperatura ambiente in Kelvin (20°C)
 
 //Bool variables
 #define FLUID_INJ 1
@@ -39,26 +49,31 @@
 #define BLOCKSIZEX 32
 
 // Buondary parameter
-#define periodic 0 // 1 if periodic boundary conditions are used, 0 otherwise
+#define periodic 0 // 1 if periodic boundary conditions are used, 0 otherwise (Neumann reflecting BC)
 //Insert an advection external scalar field
-#define advect_scalar_bool 1 // 1 if the scalar field is advected, 0 otherwise
+#define advect_scalar_bool 0 // 1 if the scalar field is advected, 0 otherwise
 #define diffusion_rate 0.001f // Diffusion rate of the scalar field  
 
 //graphic parameters visualization
-#define MAX_VELOCITY VEL/4  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
+#define MAX_VELOCITY VEL*GRAPHIC_VEL_SCALING  // Adjust as needed for normalization (used in colorKernel--graphic parameter)
 #define MAX_SCALAR 500 // Adjust as needed for normalization (used in colorKernelScalar--graphic parameter)
-#define PLOT_SCALAR 1 // 1 if the scalar field is plotted, 0 otherwise
-#define PLOT_VELOCITY 0 // 1 if the velocity field is plotted, 0 otherwise
+#define PLOT_SCALAR 0 // 1 if the scalar field is plotted, 0 otherwise
+#define PLOT_VELOCITY 1 // 1 if the velocity field is plotted, 0 otherwise
+#define RENDERING 20 //Graphic parameter, ogni quanti step temporali cattura un'immagine
 
 //Obstacle position
+//Puoi inserire ostacoli da obstacles.h
 #define obstacleCenterX  DIM / 2.0f // Center of the domain
 #define obstacleCenterY DIM / 3.0f
-#define obstacleRadius DIM / 10.0f // Adjust as needed
+#define obstacleRadius DIM / 16.0f // Adjust as needed
 
 // Simulation parameters
 float timestep = TIMESTEP;
 unsigned dim = DIM;
+//--------------------------------Spatial discretization--------------------------------
 float rdx = static_cast<float>(RES) / dim;
+//--------------------------------------------------------------------------------------
+
 float viscosity = VISCOSITY;
 float r = 4000;
 float magnitude = 5.0f;

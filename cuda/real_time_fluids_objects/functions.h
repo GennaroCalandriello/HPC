@@ -2,6 +2,7 @@
 #include "scalar.h"
 
 
+
 // Simulation parameters
 
 
@@ -330,7 +331,7 @@ __device__ void injectFluid(Vector2f* u, unsigned dim) {
 
     // Parameters for the jet
     int jetX = JETX;       // Center of the jet in the horizontal (x) direction
-    int jetY = 0;          // Bottom boundary (j = 0)
+    int jetY = JETY;          // Bottom boundary (j = 0)
     float jetRadius = JETRADIUS;
     float jetSpeed = JETSPEED; // Positive value for upward flow
 
@@ -344,7 +345,7 @@ __device__ void injectFluid(Vector2f* u, unsigned dim) {
         float strength = (jetRadius - distance) / jetRadius;
 
         // Inject fluid by setting the vertical velocity upwards
-        u[idx].x = 0.0f;                // No horizontal velocity
+        u[idx].x = 7.0f;                // No horizontal velocity
         u[idx].y = jetSpeed * strength; // Vertical velocity upwards
     }
 }
@@ -533,3 +534,4 @@ __global__ void colorKernelScalar(Vector3f* colorField, float* scalarField, int*
 
     colorField[idx] = Vector3f(r, g, b);
 }
+

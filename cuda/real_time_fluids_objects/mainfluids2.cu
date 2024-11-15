@@ -394,8 +394,9 @@ int main(int argc, char** argv) {
 
         // Time step
         float time = glfwGetTime();
-        float randomFloat = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
-        float c_ambient = randomFloat;    // Ambient value of c
+        // float randomFloat = static_cast <float> (rand()) / static_cast <float> (RAND_MAX);
+        // float c_ambient = randomFloat;    // Ambient value of c
+        float c_ambient = C_AMBIENT;
 
         if (PERIODIC_FORCE == 1) {
             F = Vector2f(magnitude * sin(time), 0.0f); // Initial force
