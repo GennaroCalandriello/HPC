@@ -7,8 +7,8 @@
             "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
             "args": [
                 "-o",
-                "mainfluids2",
-                "mainfluids2.cu",
+                "s_eq",
+                "schrodinger.cu",
 
                 // Include directories
                 "-I", "glew-2.1.0/include",
