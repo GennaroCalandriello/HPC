@@ -7,14 +7,14 @@
 #include "glfw-3.4.bin.WIN64/include/GLFW//glfw3.h"
 
 //-----------------------------V I S C O S I T Y--------------------------------
-#define VISCOSITY 1e-2f
+#define VISCOSITY 3
 //parametro grafico per la normalizzazione di u
 #define GRAPHIC_VEL_SCALING 1.0f 
 
 #define IND(x, y, d) int((y) * (d) + (x))
 #define CLAMP(x) ((x < 0.0f) ? 0.0f : ((x > 1.0f) ? 1.0f : x))
 
-#define VEL 2250
+#define VEL 8250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
 #define DIM 1200
 #define RES DIM
@@ -51,7 +51,7 @@
 // Buondary parameter
 #define periodic 0 // 1 if periodic boundary conditions are used, 0 otherwise (Neumann reflecting BC)
 //Insert an advection external scalar field
-#define advect_scalar_bool 0 // 1 if the scalar field is advected, 0 otherwise
+#define advect_scalar_bool 1 // 1 if the scalar field is advected, 0 otherwise
 #define diffusion_rate 0.001f // Diffusion rate of the scalar field  
 
 //graphic parameters visualization
