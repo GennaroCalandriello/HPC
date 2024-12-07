@@ -15,6 +15,7 @@
 #define dim 256       // Simulation grid dimension
 #define timestep 0.01f
 #define hbar 1.0f     // Planck's constant divided by 2π
+#define pi 3.14159265358979323846f
 
 #define IND(i, j, k, dim) ((i)+(j)*dim +(k)*dim*dim)
 
