@@ -19,3 +19,10 @@ __device__ __inline__ void complexDiv(cuDoubleComplex* n, double d)
     n -> x /= d;
     n -> y /= d;
 }
+
+__device__ __inline__
+double arctan(cuDoubleComplex inp)
+{
+  double res =  atan2(inp.y, inp.x);
+  return res;
+}
