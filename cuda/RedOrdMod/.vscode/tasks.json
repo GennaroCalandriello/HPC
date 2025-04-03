@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build CUDA",
+            "type": "shell",
+            "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
+            "args": [
+                "-o",
+                "romme.exe",
+                "rom.cu",
+
+                // Include directories
+                "-I", "glew-2.1.0/include",
+                "-I", "glfw-3.4.bin.WIN64/include",
+                "-I", "C:/Users/vanho/Desktop/GitHub/HPC/cuda/RedOrdMod/eigen/",
+
+                // Library directories
+                "-L", "glew-2.1.0/lib/Release/x64",
+                "-L", "glfw-3.4.bin.WIN64/lib-vc2019",
+
+                // Linker options
+                "-lglew32",
+                "-lglfw3",
+                "-lopengl32",
+                "-lgdi32",
+                "-luser32",
+                "-lshell32",
+                "-lkernel32",
+                "-ladvapi32",
+                "-lole32",
+                "-lwinmm",
+                "-lcomdlg32",
+
+                // CUDA libraries
+                "-lcurand",
+
+                // Instruct the host compiler to use the multithreaded DLL runtime
+                "-Xcompiler", "/MD"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Generated task for CUDA with Eigen included"
+        }
+    ]
+}
