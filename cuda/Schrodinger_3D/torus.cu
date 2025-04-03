@@ -5,8 +5,8 @@
 //La teoria la trovate nell'articolo "Schrödinger’s Smoke" di Chern, Knoppel et al.
 
 struct Torus {
-    int resx, resy, resz; //rispettivamente Nx, Ny, Nz, ovvero estensione totale del dominio
-    int sizex, sizey, sizez;
+    int resx, resy, resz; //resolutions (number of samples) in each direction
+    int sizex, sizey, sizez; // size of the domain in each direction
     double dx, dy, dz; // edge length of the grid cell
 
     double *vx;
@@ -172,4 +172,69 @@ void Torus_StaggeredSharp()
     int nb = numblock(torus_cpu.plen);
     StaggeredSharp_ker<<<nb, THREADS_PER_BLOCK>>>();
     cudaDeviceSynchronize();
+}
+
+__global__ void fftshift(cufftDoubleComplex *data)
+//This function is intended to perform an fftshift operation
+// on a 3D array stored in data. In the context of Fourier transforms, 
+//fftshift is often used to rearrange frequency-domain data so that
+// the zero-frequency (DC) component is moved from the corner of the
+// array to its center. This makes the frequency spectrum easier to interpret
+// visually and numerically
+{
+  int xs = torus.resx / 2;
+  int ys = torus.resy / 2;
+  int zs = torus.resz / 2;
+  int len = torus.plen;
+  int x, y, z = 0;
+  int j;
+
+  /*if (len % 2 == 1){
+    printf("Error: fftshift only supports even sized grid!\n");
+    return;
+  }*/
+
+  int i = check_limit(len / 2);
+  if(i<0) return;
+
+  //for (int i=0; i<len/2; i++)
+  //{
+    cufftDoubleComplex temp = data[i];
+    getCoords(i, &x, &y, &z);
+    x = (x + xs) % torus.resx;
+    y = (y + ys) % torus.resy;
+    z = (z + zs) % torus.resz;
+    j = index3d(x, y, z);
+    data[i] = data[j];
+    data[j] = temp;
+  //}
+}
+
+__global__ void ifftshift(cufftDoubleComplex *data)
+// Since we are only working with even-sized arrays
+// ifftshift is equivalent with fftshift
+{
+  int xs = torus.resx / 2;
+  int ys = torus.resy / 2;
+  int zs = torus.resz / 2;
+  int len = torus.resx * torus.resy * torus.resz;
+  int x, y, z = 0;
+  int j;
+
+  if (len % 2 == 1){
+    printf("Error: fftshift only supports even sized grid!\n");
+    return;
+  }
+
+  for (int i=0; i<len/2; i++)
+  {
+    cufftDoubleComplex temp = data[i];
+    getCoords(i, &x, &y, &z);
+    x = (x + xs) % torus.resx;
+    y = (y + ys) % torus.resy;
+    z = (z + zs) % torus.resz;
+    j = index3d(x, y, z);
+    data[i] = data[j];
+    data[j] = temp;
+  }
 }
