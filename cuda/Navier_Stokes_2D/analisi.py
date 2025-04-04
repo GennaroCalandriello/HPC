@@ -1,39 +1,64 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Load the modes: shape (Ns*Ns*2, Nmodes)
-modes = np.loadtxt("pod_modes.txt", delimiter=",")  # shape: (Ns² * 2, Nmodes)
+import numpy as np
+import matplotlib.pyplot as plt
 
-# Check shape
-print("Loaded modes shape:", modes)
+def plotModes(mode_id=5):
+    # Load the modes: shape (dim² * 2, Nmodes)
+    modes = np.loadtxt("pod_modes.txt", delimiter=",")  # shape: (2*dim², Nmodes)
 
-# Recover spatial resolution
-Ns2 = modes.shape[0] // 2
-dim = int(np.sqrt(Ns2))  # assuming square grid
-print(f"Grid: {dim}x{dim}, Num modes: {modes.shape[1]}")
+    # Check shape
+    print("Loaded modes shape:", modes.shape)
 
-mode_id = 5  # Select mode index
+    if modes.ndim != 2:
+        raise ValueError("Expected a 2D array from pod_modes.txt")
 
-# Split x and y components
-mode_x_flat = modes[:Ns2, mode_id]
-mode_y_flat = modes[Ns2:, mode_id]
+    Ns2 = modes.shape[0] // 2
+    dim = int(np.sqrt(Ns2))  # assuming a square grid
 
-# Reshape for visualization
-mode_x = mode_x_flat.reshape((dim, dim))
-mode_y = mode_y_flat.reshape((dim, dim))
+    # if dim * dim != Ns2:
+    #     raise ValueError("Grid is not square or inconsistent dimensions in data")
 
-# Plot the mode
-plt.figure(figsize=(12, 5))
+    print(f"Grid: {dim}x{dim}, Num modes: {modes.shape[1]}")
 
-plt.subplot(1, 2, 1)
-plt.imshow(mode_x, cmap='seismic', origin='lower')
-plt.title(f"POD Mode {mode_id+1} (x)")
-plt.colorbar()
+    if mode_id >= modes.shape[1]:
+        raise IndexError(f"Requested mode_id {mode_id} exceeds number of available modes ({modes.shape[1]})")
 
-plt.subplot(1, 2, 2)
-plt.imshow(mode_y, cmap='seismic', origin='lower')
-plt.title(f"POD Mode {mode_id+1} (y)")
-plt.colorbar()
+    # Extract x and y components
+    mode_x_flat = modes[:Ns2, mode_id]
+    mode_y_flat = modes[Ns2:, mode_id]
 
-plt.tight_layout()
-plt.show()
+    # Reshape into 2D fields
+    mode_x = mode_x_flat.reshape((dim, dim))
+    mode_y = mode_y_flat.reshape((dim, dim))
+
+    # Plot the mode
+    plt.figure(figsize=(12, 5))
+
+    plt.subplot(1, 2, 1)
+    plt.imshow(mode_x, cmap='seismic', origin='lower')
+    plt.title(f"POD Mode {mode_id+1} (x)")
+    plt.colorbar()
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(mode_y, cmap='seismic', origin='lower')
+    plt.title(f"POD Mode {mode_id+1} (y)")
+    plt.colorbar()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def checkCSV():
+    # load the data snapshots.csv
+    data = np.loadtxt("snapshots.csv", delimiter=",")  # shape: (Ns² * 2, Nsnapshots)
+    print("Loaded data shape:", data.shape)
+    #covariance matrix
+    covariance_matrix = data @ data.T/ data.shape[1]  # shape: (Ns² * 2, Ns² * 2)
+    print("Covariance matrix shape:", covariance_matrix.shape)
+    print("Covariance values:", covariance_matrix)
+    
+if __name__ == "__main__":
+    plotModes()
+    # checkCSV()
