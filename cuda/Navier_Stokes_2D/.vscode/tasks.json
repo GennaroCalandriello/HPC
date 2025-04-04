@@ -7,12 +7,16 @@
             "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
             "args": [
                 "-o",
-                "mainfluids2",
-                "mainfluids2.cu",
+                // "snap",
+                // "snaptest.cu",
+                "dashpod",
+                "pod.cpp",
 
                 // Include directories
                 "-I", "glew-2.1.0/include",
                 "-I", "glfw-3.4.bin.WIN64/include",
+                //include eigen
+                "-I", "C:/Users/vanho/Desktop/GitHub/HPC/cuda/RedOrdMod/eigen/",
 
                 // Library directories
                 "-L", "glew-2.1.0/lib/Release/x64",

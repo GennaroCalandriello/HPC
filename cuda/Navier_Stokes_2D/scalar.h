@@ -16,12 +16,12 @@
 
 #define VEL 8250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
-#define DIM 1200
+#define DIM 100
 #define RES DIM
 
 #define RADIUS (DIM * DIM)
 #define DECAY_RATE 0.3f
-#define NUM_TIMESTEPS 300
+#define NUM_TIMESTEPS 1
 #define JETX DIM / 2
 #define JETY 0
 #define JETRADIUS DIM
@@ -31,7 +31,8 @@
 #define VORTEX_STRENGTH 15.0f
 #define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
-
+#define SNAPSHOT_INTERVAL 1 // Number of steps between snapshots
+#define MAX_FRAMES 100 // Number of frames to capture for the animation
 
 //Fbuoyancy =−ρβ(T−Tambient)g
 #define BETA_BOUYANCY 2e-3f // coefficiente di espansione termica (coefficiente di galleggiamento)
