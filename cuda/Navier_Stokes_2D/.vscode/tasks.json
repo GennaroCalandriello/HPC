@@ -2,15 +2,15 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build CUDA",
+            "label": "SVD on GPU",
             "type": "shell",
             "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
             "args": [
                 "-o",
                 // "snap",
                 // "snaptest.cu",
-                "dashpod",
-                "pod.cpp",
+                "dashpod_cu",
+                "pod_gpu.cu",
 
                 // Include directories
                 "-I", "glew-2.1.0/include",
@@ -34,6 +34,59 @@
                 "-lole32",
                 "-lwinmm",
                 "-lcomdlg32",
+                "-lcusolver",
+
+                // CUDA libraries
+                "-lcurand",
+
+                // Instruct the host compiler to use the multithreaded DLL runtime
+                "-Xcompiler", "/MD",
+
+                // // Suppress default library LIBCMT
+                // "-Xlinker", "/NODEFAULTLIB:LIBCMT",
+
+                // // Ensure the subsystem is set to console
+                // "-Xlinker", "/SUBSYSTEM:CONSOLE"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"],
+            "detail": "Generated task for CUDA"
+        },
+        {
+            "label": "Build CUDA snapshots",
+            "type": "shell",
+            "command": "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6/bin/nvcc.exe",
+            "args": [
+                "-o",
+                "snap",
+                "snaptest.cu",
+
+                // Include directories
+                "-I", "glew-2.1.0/include",
+                "-I", "glfw-3.4.bin.WIN64/include",
+                //include eigen
+                "-I", "C:/Users/vanho/Desktop/GitHub/HPC/cuda/RedOrdMod/eigen/",
+
+                // Library directories
+                "-L", "glew-2.1.0/lib/Release/x64",
+                "-L", "glfw-3.4.bin.WIN64/lib-vc2019",
+
+                // Linker options
+                "-lglew32",
+                "-lglfw3",
+                "-lopengl32",
+                "-lgdi32",
+                "-luser32",
+                "-lshell32",
+                "-lkernel32",
+                "-ladvapi32",
+                "-lole32",
+                "-lwinmm",
+                "-lcomdlg32",
+                "-lcusolver",
 
                 // CUDA libraries
                 "-lcurand",
@@ -55,4 +108,6 @@
             "detail": "Generated task for CUDA"
         }
     ]
+
+    
 }
