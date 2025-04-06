@@ -1,64 +1,102 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import math
 
-import numpy as np
-import matplotlib.pyplot as plt
+def load_modes(filename):
+    """
+    Load eigenmodes from a CSV file.
+    
+    The CSV file is assumed to have each row representing a mode.
+    Each row has 2*Ns^2 elements:
+      - The first half are the x–components.
+      - The second half are the y–components.
+    
+    Returns:
+       modes: numpy array of shape (num_modes, 2*Ns^2)
+    """
+    return np.loadtxt(filename, delimiter=",")
 
-def plotModes(mode_id=5):
-    # Load the modes: shape (dim² * 2, Nmodes)
-    modes = np.loadtxt("pod_modes.txt", delimiter=",")  # shape: (2*dim², Nmodes)
-
-    # Check shape
-    print("Loaded modes shape:", modes.shape)
-
-    if modes.ndim != 2:
-        raise ValueError("Expected a 2D array from pod_modes.txt")
-
-    Ns2 = modes.shape[0] // 2
-    dim = int(np.sqrt(Ns2))  # assuming a square grid
-
-    # if dim * dim != Ns2:
-    #     raise ValueError("Grid is not square or inconsistent dimensions in data")
-
-    print(f"Grid: {dim}x{dim}, Num modes: {modes.shape[1]}")
-
-    if mode_id >= modes.shape[1]:
-        raise IndexError(f"Requested mode_id {mode_id} exceeds number of available modes ({modes.shape[1]})")
-
-    # Extract x and y components
-    mode_x_flat = modes[:Ns2, mode_id]
-    mode_y_flat = modes[Ns2:, mode_id]
-
-    # Reshape into 2D fields
-    mode_x = mode_x_flat.reshape((dim, dim))
-    mode_y = mode_y_flat.reshape((dim, dim))
-
-    # Plot the mode
-    plt.figure(figsize=(12, 5))
-
-    plt.subplot(1, 2, 1)
-    plt.imshow(mode_x, cmap='seismic', origin='lower')
-    plt.title(f"POD Mode {mode_id+1} (x)")
-    plt.colorbar()
-
-    plt.subplot(1, 2, 2)
-    plt.imshow(mode_y, cmap='seismic', origin='lower')
-    plt.title(f"POD Mode {mode_id+1} (y)")
-    plt.colorbar()
-
+def plot_eigenmode(modes, mode_index=6):
+    """
+    Plot a single eigenmode's x and y components.
+    
+    Parameters:
+       modes: numpy array of shape (num_modes, 2*Ns^2)
+       mode_index: index (row) of the mode to visualize.
+    
+    The first half of the row is reshaped to an (Ns x Ns) array for the x–component,
+    and the second half to an (Ns x Ns) array for the y–component.
+    """
+    mode = modes[:, mode_index]
+    print("ode values:", mode)  # Debugging line to check the mode values
+    total = mode.size
+    if total % 2 != 0:
+        raise ValueError("Mode length must be even.")
+    half = total // 2
+    Ns  = int(math.sqrt(half))
+    # if Ns * Ns != half:
+    #     raise ValueError("Cannot reshape mode into a square grid.")
+    
+    # Split the mode into x and y components and reshape to (Ns, Ns)
+    mode_x = mode[:half].reshape((Ns, Ns))
+    mode_y = mode[half:].reshape((Ns, Ns))
+    
+    # Plot using two subplots with colormaps
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+    im0 = axs[0].imshow(mode_x, cmap='viridis', origin='lower')
+    axs[0].set_title(f"Mode {mode_index+1} - x component")
+    plt.colorbar(im0, ax=axs[0])
+    
+    im1 = axs[1].imshow(mode_y, cmap='viridis', origin='lower')
+    axs[1].set_title(f"Mode {mode_index+1} - y component")
+    plt.colorbar(im1, ax=axs[1])
+    
     plt.tight_layout()
     plt.show()
 
-
-def checkCSV():
-    # load the data snapshots.csv
-    data = np.loadtxt("snapshots.csv", delimiter=",")  # shape: (Ns² * 2, Nsnapshots)
-    print("Loaded data shape:", data.shape)
-    #covariance matrix
-    covariance_matrix = data @ data.T/ data.shape[1]  # shape: (Ns² * 2, Ns² * 2)
-    print("Covariance matrix shape:", covariance_matrix.shape)
-    print("Covariance values:", covariance_matrix)
+def animate_eigenmodes(modes, interval=1000):
+    """
+    Animate the eigenmodes sequentially.
     
+    Parameters:
+       modes: numpy array of shape (num_modes, 2*Ns^2)
+       interval: delay (in ms) between frames.
+    """
+    num_modes, total = modes.shape
+    if total % 2 != 0:
+        raise ValueError("Mode length must be even.")
+    half = total // 2
+    Ns = int(math.sqrt(half))
+    if Ns * Ns != half:
+        raise ValueError("Cannot reshape mode into a square grid.")
+    
+    fig, (ax0, ax1) = plt.subplots(1, 2, figsize=(12, 5))
+    im0 = ax0.imshow(np.zeros((Ns, Ns)), cmap='viridis', origin='lower')
+    ax0.set_title("x component")
+    im1 = ax1.imshow(np.zeros((Ns, Ns)), cmap='viridis', origin='lower')
+    ax1.set_title("y component")
+    
+    def update(frame):
+        mode = modes[frame, :]
+        mode_x = mode[:half].reshape((Ns, Ns))
+        mode_y = mode[half:].reshape((Ns, Ns))
+        im0.set_data(mode_x)
+        im1.set_data(mode_y)
+        fig.suptitle(f"Mode {frame+1}")
+        return im0, im1
+
+    ani = animation.FuncAnimation(fig, update, frames=num_modes, interval=interval, blit=False, repeat=True)
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == "__main__":
-    plotModes()
-    # checkCSV()
+    filename = "pod_modes.txt"
+    modes = load_modes(filename)
+    print("Loaded modes with shape:", modes.shape)  # Expect (num_modes, 2*Ns^2)
+    
+    # Visualize the first mode
+    plot_eigenmode(modes, mode_index=0)
+    
+    # Uncomment the following line to animate all eigenmodes:
+    # animate_eigenmodes(modes, interval=1000)

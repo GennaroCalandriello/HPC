@@ -412,11 +412,18 @@ int main(int argc, char** argv) {
         framecount++;
     }
 
+// Write the snapshots.csv file as an (N_space x M_times) matrix (i.e., column-major order)
+    int M_times = snapshot_matrix.size();
+    int N_space = snapshot_matrix[0].size();
     std::ofstream out("snapshots.csv");
-    for (const auto& row : snapshot_matrix) {
-        for (size_t j = 0; j < row.size(); ++j) {
-            out << row[j];
-            if (j < row.size() - 1) out << ",";
+    std::cout << "Snapshot matrix size (time slices x spatial): " << M_times << " x " << N_space << "\n";
+
+    // Write the transposed matrix: each row corresponds to a spatial component, each column to a time slice
+    for (int i = 0; i < N_space; ++i) {
+        for (int j = 0; j < M_times; ++j) {
+            out << snapshot_matrix[j][i];
+            if (j < M_times - 1) 
+                out << ",";
         }
         out << "\n";
     }

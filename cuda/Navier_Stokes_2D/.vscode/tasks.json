@@ -35,6 +35,7 @@
                 "-lwinmm",
                 "-lcomdlg32",
                 "-lcusolver",
+                "-lcublas",
 
                 // CUDA libraries
                 "-lcurand",

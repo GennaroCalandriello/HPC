@@ -32,7 +32,7 @@
 #define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
 #define SNAPSHOT_INTERVAL 1 // Number of steps between snapshots
-#define MAX_FRAMES 100 // Number of frames to capture for the animation
+#define MAX_FRAMES 22 // Number of frames to capture for the animation
 
 //Fbuoyancy =−ρβ(T−Tambient)g
 #define BETA_BOUYANCY 2e-3f // coefficiente di espansione termica (coefficiente di galleggiamento)
