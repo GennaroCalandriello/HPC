@@ -3,19 +3,26 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import math
 
-def load_modes(filename):
+import polars as pl
+import numpy as np
+
+def load_matrix_polars(file_path: str, delimiter: str = ",") -> np.ndarray:
     """
-    Load eigenmodes from a CSV file.
-    
-    The CSV file is assumed to have each row representing a mode.
-    Each row has 2*Ns^2 elements:
-      - The first half are the x–components.
-      - The second half are the y–components.
-    
+    Load a CSV file using Polars and convert it to a NumPy array.
+
+    Parameters:
+        file_path (str): Path to the CSV file.
+        delimiter (str): Field delimiter in the CSV file.
+
     Returns:
-       modes: numpy array of shape (num_modes, 2*Ns^2)
+        np.ndarray: 2D NumPy array with the loaded data.
     """
-    return np.loadtxt(filename, delimiter=",")
+    # Read the CSV file using Polars
+    df = pl.read_csv(file_path, separator=delimiter)
+    # Convert the Polars DataFrame to a NumPy array.
+    # Note: The resulting array will be in row-major order.
+    matrix = df.to_numpy()
+    return matrix
 
 def plot_eigenmode(modes, mode_index=6):
     """
@@ -91,12 +98,12 @@ def animate_eigenmodes(modes, interval=1000):
     plt.show()
 
 if __name__ == "__main__":
-    filename = "pod_modes.txt"
-    modes = load_modes(filename)
+    filename = "U.txt"
+    modes = load_matrix_polars(filename, delimiter=",")
     print("Loaded modes with shape:", modes.shape)  # Expect (num_modes, 2*Ns^2)
     
     # Visualize the first mode
-    plot_eigenmode(modes, mode_index=0)
+    # plot_eigenmode(modes, mode_index=0)
     
     # Uncomment the following line to animate all eigenmodes:
     # animate_eigenmodes(modes, interval=1000)

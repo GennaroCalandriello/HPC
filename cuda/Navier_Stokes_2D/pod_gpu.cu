@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <string.h>
+#include <assert.h>
 #include <cuda_runtime.h>
 #include <fstream>
 #include <iostream>
@@ -9,9 +11,11 @@
 #include <vector>
 #include <algorithm>
 #include <cusolverDn.h>
+#include <cublas_v2.h>
 #include "scalar.h"  // Defines DIM and MAX_FRAMES
 
 using namespace std;
+enum class Layout { RowMajor, ColMajor };
 
 // Global flags to control saving behavior
 bool savesigma   = true;  // Save singular values if true
@@ -36,7 +40,7 @@ int  pod_to_save = 10;    // Number of POD modes (columns) to save
     }                                                       \
 }
 
-enum class Layout { RowMajor, ColMajor };
+
 
 void loadCsv(const std::string& filename,
              std::vector<double>& matrix,
@@ -96,57 +100,164 @@ void printMatrix(const std::vector<double>& matrix, int rows, int cols, Layout l
     }
 }
 
-void svdCudas(const double* h_A, int Nrows, int Ncols,
+void saveMatrix(const std::string &filename,
+                   const std::vector<double> &mat,
+                   int N, int M,
+                   Layout order =Layout::RowMajor)
+{
+    std::ofstream outFile(filename);
+    if (!outFile.is_open()) {
+        std::cerr << "Error opening file for writing: " << filename << std::endl;
+        return;
+    }
+
+    // Write matrix elements to file.
+    for (int i = 0; i < N; i++) {
+        for (int j = 0; j < M; j++) {
+            double value = 0.0;
+            if (order == Layout::ColMajor) {
+                // In column-major order, element (i, j) is at index i + j*N.
+                value = mat[i + j * N];
+            } else {
+                // In row-major order, element (i, j) is at index i*M + j.
+                value = mat[i * M + j];
+            }
+            outFile << value;
+            if (j < M - 1) {
+                outFile << ",";
+            }
+        }
+        outFile << "\n";
+    }
+    outFile.close();
+}
+
+
+void svdCudas(double* h_A, const int N, const int M,
               double* h_S, double* h_U, double* h_V)
 {
-    
-    double* d_A = nullptr;
-    cout<< "Numero1"<< endl;
-    CHECK_CUDA(cudaMalloc((void**)&d_A, Nrows * Ncols * sizeof(double)));
-    CHECK_CUDA(cudaMemcpy(d_A, h_A, Nrows * Ncols * sizeof(double), cudaMemcpyHostToDevice));
-    
-    double *d_S = nullptr, *d_U = nullptr, *d_V = nullptr;
-    CHECK_CUDA(cudaMalloc((void**)&d_S, Nrows*Ncols * sizeof(double)));
-    CHECK_CUDA(cudaMalloc((void**)&d_U, Nrows * Nrows * sizeof(double)));
-    CHECK_CUDA(cudaMalloc((void**)&d_V, Ncols * Ncols * sizeof(double)));
-    cout<< "Numero2"<< endl;
-    cusolverDnHandle_t handle;
-    CHECK_CUSOLVER(cusolverDnCreate(&handle));
-    cout<< "Numero3"<< endl;
+    cusolverDnHandle_t cusolverH = NULL;
+    cublasHandle_t cublasH = NULL;
+    cublasStatus_t cublas_status = CUBLAS_STATUS_SUCCESS;
+    cusolverStatus_t cusolver_status = CUSOLVER_STATUS_SUCCESS;
+    cudaError_t cudaStat1 = cudaSuccess;
+    cudaError_t cudaStat2 = cudaSuccess;
+    cudaError_t cudaStat3 = cudaSuccess;
+    cudaError_t cudaStat4 = cudaSuccess;
+    cudaError_t cudaStat5 = cudaSuccess;
+    cudaError_t cudaStat6 = cudaSuccess;
+
+    double *d_A = NULL,
+           *d_S = NULL,
+           *d_U = NULL,
+           *d_VT = NULL;
+    int *devInfo = NULL;
+    double *d_work = NULL;
+    double *d_rwork = NULL;
+    double *d_W = NULL;  // W = S*VT
+
     int lwork = 0;
-    CHECK_CUSOLVER(cusolverDnDgesvd_bufferSize(handle, Ncols, Nrows, &lwork));
-    cout<< "Numero1"<< endl;
-    double* d_work = nullptr;
-    CHECK_CUDA(cudaMalloc((void**)&d_work, lwork * sizeof(double)));
-    
-    int* devInfo = nullptr;
-    CHECK_CUDA(cudaMalloc((void**)&devInfo, sizeof(int)));
-    
-    char jobu  = 'A';  // Compute full U (Nrows x Nrows)
-    char jobvt = 'A';  // Compute full V^T (Ncols x Ncols)
-    
-    CHECK_CUSOLVER(cusolverDnDgesvd(handle, jobu, jobvt, Nrows, Ncols, d_A, Nrows,
-                                    d_S, d_U, Nrows, d_V, Ncols, d_work, lwork, nullptr, devInfo));
-    cout<< "Numero7"<< endl;
-    CHECK_CUDA(cudaDeviceSynchronize());
-    
-    int info_cpu = 0;
-    CHECK_CUDA(cudaMemcpy(&info_cpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost));
-    if (info_cpu != 0) {
-        cerr << "SVD failed, info = " << info_cpu << endl;
-        exit(1);
-    }
-    CHECK_CUDA(cudaMemcpy(h_S, d_S, Nrows*Ncols * sizeof(double), cudaMemcpyDeviceToHost));
-    CHECK_CUDA(cudaMemcpy(h_U, d_U, Nrows * Nrows * sizeof(double), cudaMemcpyDeviceToHost));   
-    CHECK_CUDA(cudaMemcpy(h_V, d_V, Ncols * Ncols * sizeof(double), cudaMemcpyDeviceToHost));
-    cout<< "Numero9"<< endl;
-    cudaFree(d_A);
-    cudaFree(d_S);
-    cudaFree(d_U);
-    cudaFree(d_V);
-    cudaFree(d_work);
-    cudaFree(devInfo);
-    cusolverDnDestroy(handle);
+    int info_gpu = 0;
+    const double h_one = 1;
+    const double h_minus_one = -1;
+    // step 1: create cusolverDn/cublas handle
+    cusolver_status = cusolverDnCreate(&cusolverH);
+    assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
+
+    cublas_status = cublasCreate(&cublasH);
+    assert(CUBLAS_STATUS_SUCCESS == cublas_status);
+
+    // step 2: copy A and B to device
+    cudaStat1 = cudaMalloc((void**)&d_A, sizeof(double) * N * M);
+    cudaStat2 = cudaMalloc((void**)&d_S, sizeof(double) * M);
+    cudaStat3 = cudaMalloc((void**)&d_U, sizeof(double) * N * N);
+    cudaStat4 = cudaMalloc((void**)&d_VT, sizeof(double) * M * M);
+    cudaStat5 = cudaMalloc((void**)&devInfo, sizeof(int));
+    cudaStat6 = cudaMalloc((void**)&d_W, sizeof(double) * N * M);
+    assert(cudaSuccess == cudaStat1);
+    assert(cudaSuccess == cudaStat2);
+    assert(cudaSuccess == cudaStat3);
+    assert(cudaSuccess == cudaStat4);
+    assert(cudaSuccess == cudaStat5);
+    assert(cudaSuccess == cudaStat6);
+
+    cudaStat1 = cudaMemcpy(d_A, h_A, sizeof(double) * N * M, cudaMemcpyHostToDevice);
+    assert(cudaSuccess == cudaStat1);
+
+    //step 3 query working space of SVD
+    cusolver_status = cusolverDnDgesvd_bufferSize(cusolverH, N, M, &lwork);
+    assert (cusolver_status == CUSOLVER_STATUS_SUCCESS);
+
+    cudaStat1=cudaMalloc((void**)&d_work, sizeof(double)*lwork);
+    assert(cudaSuccess == cudaStat1);
+
+    //step 4 compute svd
+    signed char jobu = 'A'; // all m columns of U
+    signed char jobvt = 'A'; // all n columns of VT
+    //ATTENZIONE QUA, cusolver_status = cusolverDnDgesvd (
+        // cusolverH,
+        // jobu,
+        // jobvt,
+        // N,
+        // M,
+        // d_A,
+        // N,
+        // d_S,
+        // d_U,
+        // N,  // ldu
+        // d_VT,
+        // N, // ldvt, GNOGNOGNOGNOGNOGNOGNO!!!
+        // d_work,
+        // lwork,
+        // d_rwork,
+        // devInfo);
+    cusolver_status = cusolverDnDgesvd(cusolverH, jobu, jobvt, N, M,
+                                       d_A, N, d_S, d_U, N, d_VT, M,
+                                       d_work, lwork, d_rwork,
+                                       devInfo);
+    cudaStat1 = cudaDeviceSynchronize();
+    assert (cusolver_status == CUSOLVER_STATUS_SUCCESS);
+    assert (cudaSuccess == cudaStat1);
+
+    cudaStat1 = cudaMemcpy(h_S, d_S, sizeof(double) * M, cudaMemcpyDeviceToHost);
+    cudaStat2 = cudaMemcpy(h_U, d_U, sizeof(double) * N * N, cudaMemcpyDeviceToHost);
+    cudaStat3 = cudaMemcpy(h_V, d_VT, sizeof(double) * M * M, cudaMemcpyDeviceToHost);
+    cudaStat4 = cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost);
+    assert(cudaSuccess == cudaStat1);
+    assert(cudaSuccess == cudaStat2);
+    assert(cudaSuccess == cudaStat3);
+    assert(cudaSuccess == cudaStat4);
+
+    //info GPU
+    printf("after gesvd: info_gpu = %d\n", info_gpu);
+    assert(0 == info_gpu);
+    printf("=====\n");
+
+    printf("S = (matlab base-1)\n");
+    printf("=====\n");
+
+    printf("U = (matlab base-1)\n");
+    printf("=====\n");
+
+    printf("VT = (matlab base-1)\n");
+    printf("=====\n");
+
+    //free resources
+    // free resources
+    if (d_A    ) cudaFree(d_A);
+    if (d_S    ) cudaFree(d_S);
+    if (d_U    ) cudaFree(d_U);
+    if (d_VT   ) cudaFree(d_VT);
+    if (devInfo) cudaFree(devInfo);
+    if (d_work ) cudaFree(d_work);
+    if (d_rwork) cudaFree(d_rwork);
+    if (d_W    ) cudaFree(d_W);
+
+    if (cublasH ) cublasDestroy(cublasH);
+    if (cusolverH) cusolverDnDestroy(cusolverH);
+
+    cudaDeviceReset();
+
 }
 
 
@@ -162,22 +273,33 @@ int main(){
     // printMatrix(data, N, M, Layout::RowMajor);
     // cout << "------------------------\n";
     // printMatrix(data, N, M, Layout::ColMajor);
-    vector<double> S(N*M, 0.0);
+    int mn = std::min(N, M);
+    vector<double> S(mn, 0.0);
     vector<double> U(N * N, 0.0);
     vector<double> Vt(M * M, 0.0);
     cout <<"Qua ngi arrivi mannaggiacristo e la madonna\n";
+    //reconstruct the Sigma matrix
+    
 
 
     // Perform SVD
     svdCudas(data.data(), N, M, S.data(), U.data(), Vt.data());
+    vector<double> Sigma(N*M, 0.0);
+    for (int i = 0; i < mn; ++i) {
+        Sigma[i * N + i] = S[i];
+        cout << S[i] << "\t";
+    }
     //print each matrix
-    printMatrix(S, N, M, Layout::RowMajor);
-    cout << "------------------------\n";
-    printMatrix(U, N, N, Layout::RowMajor);
-    cout << "------------------------\n";
-    printMatrix(Vt, M, M, Layout::RowMajor);
-    cout << "------------------------\n";
-
+    // printMatrix(Sigma, N, M, Layout::RowMajor);
+    // cout << "------------------------\n";
+    // printMatrix(U, N, N, Layout::RowMajor);
+    // cout << "------------------------\n";
+    // printMatrix(Vt, M, M, Layout::RowMajor);
+    // cout << "------------------------\n";
+    //save
+    saveMatrix("Sigma.txt", Sigma, N, M, Layout::RowMajor);
+    saveMatrix("Vt.txt", Vt, M, M, Layout::RowMajor);
+    saveMatrix("U.txt", U, N, N, Layout::RowMajor);
 
     return 0;
 }
