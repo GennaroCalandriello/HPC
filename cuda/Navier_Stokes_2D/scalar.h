@@ -16,7 +16,7 @@
 
 #define VEL 8250
 #define TIMESTEP 0.0001f //Noi cosa vogliamo, delta t più grandi o piu piccoli?
-#define DIM 100
+#define DIM 512
 #define RES DIM
 
 #define RADIUS (DIM * DIM)
@@ -32,7 +32,7 @@
 #define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
 #define SNAPSHOT_INTERVAL 1 // Number of steps between snapshots
-#define MAX_FRAMES 22 // Number of frames to capture for the animation
+#define MAX_FRAMES 100 // Number of frames to capture for the animation
 
 //Fbuoyancy =−ρβ(T−Tambient)g
 #define BETA_BOUYANCY 2e-3f // coefficiente di espansione termica (coefficiente di galleggiamento)
@@ -41,9 +41,9 @@
 #define C_AMBIENT 29.15f   // Temperatura ambiente in Kelvin (20°C)
 
 //Bool variables
-#define FLUID_INJ 1
+#define FLUID_INJ 0
 #define PERIODIC_FORCE 0
-#define VORTEX 0
+#define VORTEX 1
 
 // CUDA kernel parameters
 #define BLOCKSIZEY 32
@@ -53,7 +53,7 @@
 #define periodic 0 // 1 if periodic boundary conditions are used, 0 otherwise (Neumann reflecting BC)
 //Insert an advection external scalar field
 #define advect_scalar_bool 1 // 1 if the scalar field is advected, 0 otherwise
-#define diffusion_rate 0.001f // Diffusion rate of the scalar field  
+#define diffusion_rate 0.01f // Diffusion rate of the scalar field  
 
 //graphic parameters visualization
 #define MAX_VELOCITY VEL*GRAPHIC_VEL_SCALING  // Adjust as needed for normalization (used in colorKernel--graphic parameter)

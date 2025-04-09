@@ -16,6 +16,7 @@
 
 using namespace std;
 enum class Layout { RowMajor, ColMajor };
+bool diag = false; // Flag to control whether to diagonalize the covariance matrix
 
 // Global flags to control saving behavior
 bool savesigma   = true;  // Save singular values if true
@@ -40,8 +41,140 @@ int  pod_to_save = 10;    // Number of POD modes (columns) to save
     }                                                       \
 }
 
+//==================================================
+//Kernel functions
+//==================================================
+__global__ void matMulKernel(const double* A, const double* B, double* C,
+                             int N, int K, int M, Layout layout)
+{
+    // Determine the row and column for this thread.
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    int col = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (row < N && col < M) {
+        double sum = 0.0;
+        for (int k = 0; k < K; k++) {
+            double a, b;
+            if (layout == Layout::RowMajor) {
+                // For row-major: element (i,k) at index i*K + k; element (k,j) at index k*M + j.
+                a = A[row * K + k];
+                b = B[k * M + col];
+            } else {
+                // For column-major: element (i,k) at index i + k*N; element (k,j) at index k + j*K.
+                a = A[row + k * N];
+                b = B[k + col * K];
+            }
+            sum += a * b;
+        }
+        if (layout == Layout::RowMajor) {
+            // For row-major: C(i,j) is at index i*M + j.
+            C[row * M + col] = sum;
+        } else {
+            // For column-major: C(i,j) is at index i + j*N.
+            C[row + col * N] = sum;
+        }
+    }
+}
+
+__global__ void computePODModesKernel(double* phi, double* lambda,int N, int M)
+{
+
+    //phi = 1/(lambda*M)*phi;
+    for (int i =0; i<M; i++){
+        for (int j=0; j<N; j++){
+            phi[i*N+j] = phi[i*N+j]/(lambda[i]*M);
+        }
+    }
+
+}
+
+                                      
+//===================================================  
+// Host functions
+//===================================================
+
+vector<double> matmul(const std::vector<double>& A, 
+                           const std::vector<double>& B,
+                           int N, int K, int M, 
+                           Layout layout)
+{
+    // Allocate device memory for A, B, and C.
+    cout << "Allocating device memory\n";
+    double *d_A = nullptr, *d_B = nullptr, *d_C = nullptr;
+    CHECK_CUDA(cudaMalloc((void**)&d_A, N * K * sizeof(double)));
+    CHECK_CUDA(cudaMalloc((void**)&d_B, K * M * sizeof(double)));
+    CHECK_CUDA(cudaMalloc((void**)&d_C, N * M * sizeof(double)));
+    cout << "Device memory allocated\n";
+    // Copy host data to device.
+    CHECK_CUDA(cudaMemcpy(d_A, A.data(), N * K * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_B, B.data(), K * M * sizeof(double), cudaMemcpyHostToDevice));
+    cout << "Data copied to device\n";
+    // Define grid and block dimensions.
+    dim3 block(16, 16);
+    dim3 grid((M + block.x - 1) / block.x, (N + block.y - 1) / block.y);
+
+    // Launch the kernel.
+    cout<<"pre kernel\n";
+    matMulKernel<<<grid, block>>>(d_A, d_B, d_C, N, K, M, layout);
+    cout<<"post kernel\n";
+    CHECK_CUDA(cudaDeviceSynchronize());
+
+    // Copy result from device back to host.
+    std::vector<double> C(N * M);
+    CHECK_CUDA(cudaMemcpy(C.data(), d_C, N * M * sizeof(double), cudaMemcpyDeviceToHost));
+
+    // Free device memory.
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+
+    return C;
+}
+
+void computePODModes(const vector<double>& snap,
+                            const vector<double>& Q,
+                            const vector<double> lambda,
+                            vector<double>& phi,
+                            int N, int M)
+{
+    // Allocate memory for output on device.
+    double* d_s = nullptr, * d_Q = nullptr, * d_lambda = nullptr, * d_phi = nullptr;
+
+    // Allocation
+    CHECK_CUDA(cudaMalloc((void**)&d_s, sizeof(double) * N*M));
+    CHECK_CUDA(cudaMalloc((void**)&d_Q, sizeof(double) * M*M));
+    CHECK_CUDA(cudaMalloc((void**)&d_lambda, sizeof(double) * M));
+    CHECK_CUDA(cudaMalloc((void**)&d_phi, sizeof(double) * N*M));
+
+    //Memcpy
+    CHECK_CUDA(cudaMemcpy(d_s, snap.data(), sizeof(double) * N*M, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_Q, Q.data(), sizeof(double)*M*M, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_lambda, lambda.data(), sizeof(double)*M, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(d_phi, phi.data(), sizeof(double)*N*M, cudaMemcpyHostToDevice));
 
 
+    // Configure grid/block dimensions.
+    dim3 block(BLOCKSIZEX, BLOCKSIZEY);
+    dim3 grid((N + block.x - 1) / block.x, (M + block.y - 1) / block.y);
+
+    // Launch the kernel.
+    // computePODModesKernel<<<grid, block>>>(d_s, d_Q, d_lambda, d_phi, N, M);
+    phi = matmul(snap, Q, N, M, N, Layout::ColMajor);
+    cout<<"Test-debuggggg\n";
+    computePODModesKernel<<<grid, block>>>(d_phi, d_lambda, N, M);
+    // vector<double> new_phi(N*M, 0.0);
+    // CHECK_CUDA(cudaMemcpy(new_phi.data(), d_phi, sizeof(double)*N*M, cudaMemcpyDeviceToHost));
+    // Check for errors in kernel launch.
+    // Copy result back to host.
+    CHECK_CUDA(cudaDeviceSynchronize());
+    CHECK_CUDA(cudaMemcpy(phi.data(), d_phi, sizeof(double)*N*M, cudaMemcpyDeviceToHost));
+    // Free device memory.
+    CHECK_CUDA(cudaFree(d_s));
+    CHECK_CUDA(cudaFree(d_Q));
+    CHECK_CUDA(cudaFree(d_lambda));
+    CHECK_CUDA(cudaFree(d_phi));
+
+}
 void loadCsv(const std::string& filename,
              std::vector<double>& matrix,
              int& rows,
@@ -158,8 +291,7 @@ void svdCudas(double* h_A, const int N, const int M,
 
     int lwork = 0;
     int info_gpu = 0;
-    const double h_one = 1;
-    const double h_minus_one = -1;
+
     // step 1: create cusolverDn/cublas handle
     cusolver_status = cusolverDnCreate(&cusolverH);
     assert(CUSOLVER_STATUS_SUCCESS == cusolver_status);
@@ -259,7 +391,66 @@ void svdCudas(double* h_A, const int N, const int M,
     cudaDeviceReset();
 
 }
-
+//-------------------------------------------------------
+// cuDiagonalization: Diagonalize a symmetric matrix (n x n) in column-major order.
+// The computed eigenvectors are stored in h_Q and eigenvalues in h_lambda.
+void cuDiagonalization(const double* h_C, double* h_Q, double* h_lambda, const int n){
+    double *d_C = NULL,
+           *d_lambda = NULL;
+    // d_Q is not used because the eigenvectors overwrite d_C.
+    CHECK_CUDA(cudaMalloc((void**)&d_C, sizeof(double) * n * n));
+    CHECK_CUDA(cudaMalloc((void**)&d_lambda, sizeof(double) * n));
+    CHECK_CUDA(cudaMemcpy(d_C, h_C, sizeof(double) * n * n, cudaMemcpyHostToDevice));
+    cout << "Matrix copied to device\n";
+    cusolverDnHandle_t cusolverH = NULL;
+    CHECK_CUSOLVER(cusolverDnCreate(&cusolverH));
+    int lwork = 0;
+    cout << "Querying buffer size\n";
+    CHECK_CUSOLVER(cusolverDnDsyevd_bufferSize(
+        cusolverH,
+        CUSOLVER_EIG_MODE_VECTOR,
+        CUBLAS_FILL_MODE_UPPER,
+        n,
+        d_C,
+        n,
+        d_lambda,
+        &lwork));
+    double* d_work = nullptr;
+    cout << "Allocating work space\n";
+    CHECK_CUDA(cudaMalloc((void**)&d_work, lwork * sizeof(double)));
+    int* devInfo = nullptr;
+    CHECK_CUDA(cudaMalloc((void**)&devInfo, sizeof(int)));
+    // Compute the eigenvalue decomposition.
+    CHECK_CUSOLVER(cusolverDnDsyevd(
+        cusolverH,
+        CUSOLVER_EIG_MODE_VECTOR,
+        CUBLAS_FILL_MODE_UPPER,
+        n,
+        d_C,
+        n,
+        d_lambda,
+        d_work,
+        lwork,
+        devInfo));
+    CHECK_CUDA(cudaDeviceSynchronize());
+    cout << "Eigenvalue decomposition completed\n";
+    int info_gpu = 0;
+    CHECK_CUDA(cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost));
+    if (info_gpu != 0) {
+        fprintf(stderr, "Error: eigenvalue decomposition did not converge. Info = %d\n", info_gpu);
+        exit(EXIT_FAILURE);
+    }
+    cout << "Copying eigenvalues to host\n";
+    CHECK_CUDA(cudaMemcpy(h_lambda, d_lambda, sizeof(double) * n, cudaMemcpyDeviceToHost));
+    // The eigenvectors are stored in d_C (column-major order).
+    CHECK_CUDA(cudaMemcpy(h_Q, d_C, sizeof(double) * n * n, cudaMemcpyDeviceToHost));
+    cout << "Eigenvectors copied to host\n";
+    cudaFree(d_C);
+    cudaFree(d_lambda);
+    cudaFree(d_work);
+    cudaFree(devInfo);
+    cusolverDnDestroy(cusolverH);
+}
 
 int main(){
     int N = 2*DIM*DIM;
@@ -269,37 +460,86 @@ int main(){
     //    std::cout << "Row-major matrix:\n";
     // printMatrix(mat, rows, cols, Layout::RowMajor);
     vector<double> data;
-    loadCsv(filename,data, N, M, Layout::RowMajor);
+    loadCsv(filename,data, N, M, Layout::ColMajor);
     // printMatrix(data, N, M, Layout::RowMajor);
     // cout << "------------------------\n";
     // printMatrix(data, N, M, Layout::ColMajor);
     int mn = std::min(N, M);
-    vector<double> S(mn, 0.0);
-    vector<double> U(N * N, 0.0);
+    vector<double> S(M, 0.0);
+    vector<double> U(M*M, 0.0);
     vector<double> Vt(M * M, 0.0);
-    cout <<"Qua ngi arrivi mannaggiacristo e la madonna\n";
+    vector<double> data_T(M*N, 0.0);
+    vector<double> Corr(N*N, 0.0);
+    //make the transpose of the data matrix
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < M; ++j) {
+            data_T[j * N + i] = data[i * M + j];
+        }
+    }
+
     //reconstruct the Sigma matrix
     
 
-
+    //==========================================
     // Perform SVD
-    svdCudas(data.data(), N, M, S.data(), U.data(), Vt.data());
-    vector<double> Sigma(N*M, 0.0);
-    for (int i = 0; i < mn; ++i) {
-        Sigma[i * N + i] = S[i];
-        cout << S[i] << "\t";
-    }
-    //print each matrix
-    // printMatrix(Sigma, N, M, Layout::RowMajor);
-    // cout << "------------------------\n";
+    // svdCudas(data.data(), N, M, S.data(), U.data(), Vt.data());
+
+    // vector<double> Sigma(N*M, 0.0);
+    // for (int i = 0; i < mn; ++i) {
+    //     Sigma[i * N + i] = S[i];
+    //     cout << S[i] << "\t";
+    // }
+    cout<<"Checking for correlations\n";
+    Corr = matmul(data_T, data, M, N, M, Layout::ColMajor);
+    cout << "Covariance Matrix Computed\n";
+    cuDiagonalization(Corr.data(), U.data(), S.data(), M);
+    cout << "Diagonalization Successful\n";
+    cout << "------------------------\n";
+    //printMatrix(Corr, N, N, Layout::RowMajor);
     // printMatrix(U, N, N, Layout::RowMajor);
-    // cout << "------------------------\n";
-    // printMatrix(Vt, M, M, Layout::RowMajor);
-    // cout << "------------------------\n";
+    //printMatrix(S, N, M, Layout::RowMajor);
     //save
-    saveMatrix("Sigma.txt", Sigma, N, M, Layout::RowMajor);
-    saveMatrix("Vt.txt", Vt, M, M, Layout::RowMajor);
-    saveMatrix("U.txt", U, N, N, Layout::RowMajor);
+    // saveMatrix("Sigma.txt", Sigma, N, M, Layout::RowMajor);
+    // saveMatrix("Vt.txt", Vt, M, M, Layout::RowMajor);
+    //reconstruct diagonal matrix
+    // vector<double> diag(N*N, 0.0);
+    // for (int i = 0; i < mn; ++i) {
+    //     diag[i * N + i] = S[i];
+    // }
+
+    // ==========================================
+    //compute pod modes
+    vector<double> phi(N*M, 0.0);
+    phi = matmul(data, U, N, M, M, Layout::ColMajor);
+    //print eigenvalues:
+    
+    cout << "phivaluess:\n";
+    for (int i = 0; i < M; ++i) {
+        cout << phi[i] << "\t";
+    }
+    //print the size of phi
+
+    // for (int i =0; i<M; i++){
+    //     for (int j=0; j<N; j++){
+    //         phi[i*N+j] = phi[i*N+j]/(S[i]*M);
+    //         cout << phi[i*N+j] << "\t";
+
+    //     }
+    //     cout << "\n";
+    // }
+    cout << "POD Modes Computed\n";
+    cout << "------------------------\n";
+    //save pod modes
+    saveMatrix("pod_modes.txt", phi, N, M, Layout::ColMajor);
+    cout << "POD Modes Saved\n";
+    //save eigenvalues
+    if (savesigma){
+        saveMatrix("sigma.txt", S, M, 1, Layout::RowMajor);
+    }
+    cout << "Eigenvalues Saved\n";
+    cout << "------------------------\n";
+    //save covariance matrix
+
 
     return 0;
 }
