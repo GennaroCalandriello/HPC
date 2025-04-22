@@ -166,7 +166,7 @@ if __name__ == "__main__":
     # We use np.loadtxt with skiprows and max_rows to load only one row.
     
     file_path = "resultsdata/pod_modes.txt"
-    chosen_mode = 20
+    chosen_mode = 198
     # zero-indexed: this will load the 6th mode
     
     # Load only the chosen row from the file
@@ -186,4 +186,4 @@ if __name__ == "__main__":
     mode1 = mode[:, chosen_mode]    
     plot_mode_colormap(mode1, mode_index=chosen_mode)
     # plot_eigenvalues(eigenvalues[:-4])
-    ani = animate_pod_modes(mode, interval=3)
+    ani = animate_pod_modes(mode[:, 160:], interval=30)

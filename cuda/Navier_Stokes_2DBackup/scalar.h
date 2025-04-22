@@ -28,11 +28,11 @@
 #define JETSPEED VEL
 #define VORTEX_CENTER_X DIM/2
 #define VORTEX_CENTER_Y DIM / 2
-#define VORTEX_STRENGTH 15.0f
+#define VORTEX_STRENGTH 25.0f
 #define VORTEX_RADIUS DIM / 10
 #define NUM_OF_DIFFUSION_STEPS 1
-#define SNAPSHOT_INTERVAL 50 // Number of steps between snapshots
-#define MAX_FRAMES 10000 // Number of frames to capture for the animation
+#define SNAPSHOT_INTERVAL 10 // Number of steps between snapshots
+#define MAX_FRAMES 100 // Number of frames to capture for the animation
 
 //Fbuoyancy =−ρβ(T−Tambient)g
 #define BETA_BOUYANCY 2e-3f // coefficiente di espansione termica (coefficiente di galleggiamento)
@@ -41,7 +41,7 @@
 #define C_AMBIENT 29.15f   // Temperatura ambiente in Kelvin (20°C)
 
 //Bool variables
-#define FLUID_INJ 1
+#define FLUID_INJ 0
 #define PERIODIC_FORCE 0
 #define VORTEX 1
 

@@ -204,15 +204,23 @@ __global__ void galerkin_kernel(Vector2f *phi, Vector2f *div_phi,
   // div_phi = div;
 }
 
-__global__ void innerProd_kernel(Vector2f *phi, Vector2f *phi2, float *result,
-                                 unsigned dim) {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j = blockIdx.y * blockDim.y + threadIdx.y;
-  if (i >= dim || j >= dim)
+__global__ void innerProductKernel(const Vector2f *__restrict__ A,
+                                   const Vector2f *__restrict__ B,
+                                   float *__restrict__ C, int M, int gridPoints,
+                                   float cellArea) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= M * M)
     return;
 
-  int idx = IND(i, j, dim);
-  result[idx] = phi[idx].x * phi2[idx].x + phi[idx].y * phi2[idx].y;
+  int i = idx / M, j = idx % M;
+  const Vector2f *Ai = A + i * gridPoints;
+  const Vector2f *Bj = B + j * gridPoints;
+
+  float s = 0;
+  for (int k = 0; k < gridPoints; ++k) {
+    s += Ai[k].x * Bj[k].x + Ai[k].y * Bj[k].y;
+  }
+  C[idx] = s * cellArea;
 }
 
 void loadfile(const std::string &filename, std::vector<double> &matrix,
@@ -1002,5 +1010,79 @@ int main() {
       all_divoutprodphi[m] = new Vector2f[gridPoints];
       // free host
     }
+
+    //====================================================
+    // EXPERIMENTAL
+    // M modes, each of length gridPoints
+    cout << "!! START Experimental Area, no trepassing, armed surveillance!!\n";
+    const float cellArea = rdx * rdx; // area of each cell in the grid
+    std::vector<Vector2f> h_phi(M * gridPoints), h_divgradphi(M * gridPoints),
+        h_gradchi(M * gridPoints), h_divphi(M * gridPoints),
+        h_divoutprod(M * gridPoints);
+
+    for (int m = 0; m < M; ++m) {
+      // copy mode m into the big array at offset m*gridPoints
+      std::copy(all_phi[m], all_phi[m] + gridPoints,
+                h_phi.begin() + m * gridPoints);
+      std::copy(all_divgradphi[m], all_divgradphi[m] + gridPoints,
+                h_divgradphi.begin() + m * gridPoints);
+      std::copy(all_gradchi[m], all_gradchi[m] + gridPoints,
+                h_gradchi.begin() + m * gridPoints);
+      std::copy(all_divphi[m], all_divphi[m] + gridPoints,
+                h_divphi.begin() + m * gridPoints);
+      std::copy(all_divoutprodphi[m], all_divoutprodphi[m] + gridPoints,
+                h_divoutprod.begin() + m * gridPoints);
+    }
+
+    // CUDA allocations:
+    Vector2f *d_phi1, *d_divgradphi1, *d_gradchi1, *d_divphi1, *d_divoutprod1;
+    float *d_M, *d_A, *d_B, *d_P;
+
+    cudaMalloc(&d_phi1, M * gridPoints * sizeof(Vector2f));
+    cudaMalloc(&d_divgradphi1, M * gridPoints * sizeof(Vector2f));
+    cudaMalloc(&d_gradchi1, M * gridPoints * sizeof(Vector2f));
+    cudaMalloc(&d_divphi1, M * gridPoints * sizeof(Vector2f));
+    cudaMalloc(&d_divoutprod1, M * gridPoints * sizeof(Vector2f));
+    cudaMalloc(&d_M, M * M * sizeof(float));
+    cudaMalloc(&d_A, M * M * sizeof(float));
+    cudaMalloc(&d_B, M * M * sizeof(float));
+    cudaMalloc(&d_P, M * M * sizeof(float));
+
+    cudaMemcpy(d_phi1, h_phi.data(), M * gridPoints * sizeof(Vector2f),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_divgradphi1, h_divgradphi.data(),
+               M * gridPoints * sizeof(Vector2f), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_gradchi1, h_gradchi.data(), M * gridPoints * sizeof(Vector2f),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_divphi1, h_divphi.data(), M * gridPoints * sizeof(Vector2f),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(d_divoutprod1, h_divoutprod.data(),
+               M * gridPoints * sizeof(Vector2f), cudaMemcpyHostToDevice);
+    // perform ROM projection
+    cout << "EXPERIMENT: Computing inner products\n";
+    innerProductKernel<<<blocks, threads>>>(d_phi1, d_phi1, d_M, M, gridPoints,
+                                            cellArea);
+    innerProductKernel<<<blocks, threads>>>(d_phi1, d_divgradphi1, d_A, M,
+                                            gridPoints, cellArea);
+    innerProductKernel<<<blocks, threads>>>(d_phi1, d_gradchi1, d_B, M,
+                                            gridPoints, cellArea);
+    innerProductKernel<<<blocks, threads>>>(d_gradchi1, d_divphi1, d_P, M,
+                                            gridPoints, cellArea);
+    // synchronize & check errors
+    cudaDeviceSynchronize();
+    cout << "EXPERIMENT: Inner products computed\n";
+
+    // copy back results
+    std::vector<float> M_host(M * M), A_host(M * M), B_host(M * M),
+        P_host(M * M);
+    cudaMemcpy(M_host.data(), d_M, M * M * sizeof(float),
+               cudaMemcpyDeviceToHost);
+    cudaMemcpy(A_host.data(), d_A, M * M * sizeof(float),
+               cudaMemcpyDeviceToHost);
+    cudaMemcpy(B_host.data(), d_B, M * M * sizeof(float),
+               cudaMemcpyDeviceToHost);
+    cudaMemcpy(P_host.data(), d_P, M * M * sizeof(float),
+               cudaMemcpyDeviceToHost);
   }
+  cout << "!! END Experimental Area, no trepassing, armed surveillance!!\n";
 }
