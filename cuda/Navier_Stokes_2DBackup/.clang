@@ -1,0 +1,5 @@
+CompileFlags:
+  Add:
+    - --cuda-path=C://Program Files//NVIDIA GPU Computing Toolkit//CUDA//v12.1
+    - -LC://Program Files//NVIDIA GPU Computing Toolkit//CUDA//v12.1//lib
+    - -IC://Program Files//NVIDIA GPU Computing Toolkit//CUDA//v12.1//include
