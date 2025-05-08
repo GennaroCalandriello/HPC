@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from modelPINN import PINN
+from modelMLP import PINN
 import hyperpar as hp
 from matplotlib.animation import FuncAnimation
 
