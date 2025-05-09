@@ -4,72 +4,81 @@ import matplotlib.pyplot as plt
 from modelLSTM import LSTM_PINN
 import hyperpar as hp
 from matplotlib.animation import FuncAnimation
-
 import os
+
+# Allow duplicate OpenMP libs
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+# Limit threads
 torch.set_num_threads(1)
 
-#device 
+# Device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-#load the trained model
+# Instantiate and load the LSTM-PINN model
 model = LSTM_PINN(hp.NX, hp.SEQ_LEN, hp.HIDDEN_SIZE, hp.NUM_LAYERS).to(device)
-model.load_state_dict(torch.load("modelLSTM.pth", map_location = device))
+model.load_state_dict(torch.load("models/modelLSTM.pth", map_location=device))
 model.eval()
 
-#Spacetime grid
-nx, nt = hp.NX, hp.NT
-x_lin = np.linspace(0, 1, nx)
-t_lin = np.linspace(0, 0.5, nt)
+# Create spatial-temporal grid
+nx, nt = hp.NX, hp.NT*2
+x = np.linspace(0, 1, nx)
+t = np.linspace(0, 0.5, nt)
+X, T = np.meshgrid(x, t)
 
-def analytic_snap(t):
-    return np.sin(np.pi*x_lin)*np.exp(-np.pi**2*hp.NU*t)
+# Prepare input sequences for static prediction:
+# We need for each time step t_i a preceding sequence of length SEQ_LEN.
+# For simplicity, use zero initial history (or repeat boundary IC) 
+# and roll forward via model.
+U_pred = np.zeros((nt, nx), dtype=np.float32)
+# initial condition for t[0] is sin(pi x)
+U_pred[0, :] = np.sin(np.pi * x)
 
-ground_truth = np.stack([analytic_snap(t) for t in t_lin], axis = 0)
-
-#predicted field by recurrence
-pred = np.zeros((nt, nx), dtype = np.float32)
-#seeding with the first SEQ_LEN snapshots
-pred[:hp.SEQ_LEN] = ground_truth[:hp.SEQ_LEN]
-
-with torch.no_grad():
-    for i in range(hp.SEQ_LEN, nt):
-        #grab the last SEQ_LEN frames, shape (SEQ_LEN,nx)
-        #to tensor of shape (1,SEQ_LEN,nx)
-        seq = pred[i-hp.SEQ_LEN : i] #last SEQ_LEN frames
-        seq_t = torch.tensor(seq[None, :, :], device = device, dtype = torch.float32)
-        #prediction
-        next_u = model(seq_t).cpu().numpy().ravel()
-        pred[i] = next_u
+# Roll forward using LSTM-PINN
+for i in range(1, nt):
+    # build sequence of last SEQ_LEN snapshots
+    start = max(0, i - hp.SEQ_LEN)
+    hist = U_pred[start:i]
+    # if not enough history, pad with initial
+    if hist.shape[0] < hp.SEQ_LEN:
+        pad = np.tile(U_pred[0], (hp.SEQ_LEN - hist.shape[0], 1))
+        hist = np.vstack([pad, hist])
+    seq_u = torch.tensor(hist[np.newaxis,...], device=device)  # [1, seq_len, nx]
+    with torch.no_grad():
+        U_pred[i] = model(seq_u).cpu().numpy()
 
 def staticPlot():
-    fig, ax = plt.subplots(figsize=(8, 5))
-    pcm = ax.pcolormesh(x_lin, t_lin, pred, shading='auto', cmap='viridis')
-    fig.colorbar(pcm, ax=ax, label='u(x,t)')
-    ax.set_xlabel('x'); ax.set_ylabel('t')
-    ax.set_title('LSTM‐PINN predicted field')
+    plt.figure(figsize=(8,6))
+    pcm = plt.pcolormesh(X, T, U_pred, shading='auto', cmap='viridis')
+    plt.colorbar(pcm, label='u')
+    plt.xlabel('x'); plt.ylabel('t'); plt.title('LSTM-DisPINN Prediction')
     plt.tight_layout()
     plt.show()
 
 def animatePlot():
-   fig, ax = plt.subplots()
-   line, = ax.plot(x_lin, pred[0], 'r-', lw=2)
-   ax.set_xlim(0, 1)
-   ax.set_ylim(pred.min(), pred.max())
-   ax.set_xlabel('x')
-   ax.set_ylabel('u(x,t)')
-   title = ax.text(0.5, 1.05, "", ha = "center")
-   
-   def update(k):
-       line.set_ydata(pred[k])
-       title.set_text(f"t = {k*hp.DT:.2f}")
-       return line, title
-   
-   ani = FuncAnimation(fig, update, frames = nt, interval = 50, blit = True)
-   plt.show()
-   
+    fig, ax = plt.subplots()
+    line, = ax.plot(x, U_pred[0,:], 'r-')
+    ax.set_xlim(0,1); ax.set_ylim(U_pred.min(), U_pred.max())
+    title = ax.text(0.5,1.05,'', ha='center')
+
+    def update(i):
+        line.set_ydata(U_pred[i,:])
+        title.set_text(f't = {t[i]:.3f}')
+        print(f"Frame {i+1}/{nt}", end='\r')
+        return line, title
+
+    ani = FuncAnimation(fig, update, frames=nt, interval=100, blit=True)
+    plt.show()
+
+def plot_loss():
+    history = np.load("lossLSTM_DisPINN.npy", allow_pickle=True).item()
+    plt.figure(figsize=(8,6))
+    plt.plot(history["total"], label="Total Loss")
+    plt.yscale('log')
+    plt.xlabel('Epoch'); plt.ylabel('Loss'); plt.title('Training Loss')
+    plt.legend(); plt.grid()
+    plt.show()
+
 if __name__ == "__main__":
     staticPlot()
     animatePlot()
-
-        
+    # plot_loss()

@@ -49,7 +49,7 @@ def pde_res(model, x, t, nu):
     u_x = torch.autograd.grad(u, x, grad_outputs=torch.ones_like(u), create_graph=True)[0]
     u_xx = torch.autograd.grad(u_x, x, grad_outputs = torch.ones_like(u_x), create_graph = True)[0]
 
-    return u_t+u*u_x-nu*u_xx
+    return u_t-u*u_x+nu*u_xx
 
 #Generate collocation and BC/IC points
 def generate_training_data(N_c, N_bc, N_ic):
